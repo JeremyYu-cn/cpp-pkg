@@ -1,0 +1,24 @@
+{
+  "name": "cpp-pkg",
+  "version": "1.0.0",
+  "main": "main.js",
+  "scripts": {
+    "test": "npm run test"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+ssh://git@github.com/JeremyYu-cn/cpp-pkg.git"
+  },
+  "keywords": [
+    "c++",
+    "package",
+    "management"
+  ],
+  "author": "Jeremy Yu",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/JeremyYu-cn/cpp-pkg/issues"
+  },
+  "homepage": "https://github.com/JeremyYu-cn/cpp-pkg#readme",
+  "description": ""
+}

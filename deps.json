@@ -1,0 +1,15 @@
+{
+  "dependencies": [
+    {
+      "name": "nlohmann_json",
+      "type": "header-only",
+      "source": {
+        "type": "file",
+        "url": "https://gitee.com/mirrors/nlohmann-json/raw/master/single_include/nlohmann/json.hpp"
+      },
+      "install": {
+        "target": "third_party/nlohmann_json/include/nlohmann/json.hpp"
+      }
+    }
+  ]
+}
