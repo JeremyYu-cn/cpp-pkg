@@ -1,0 +1,34 @@
+import { Command } from "commander";
+import path from "node:path";
+import { resolvePackageRootPath } from "../public/packagePath";
+import { readInstalledDependencies } from "../tools/deps";
+
+/**
+ * Registers the command that prints tracked packages from cpp_libs/deps.json.
+ */
+export function registerListCommand(program: Command) {
+  program
+    .command("list")
+    .description("List installed packages tracked in ./cpp_libs/deps.json")
+    .action(async () => {
+      const installed = await readInstalledDependencies();
+      const packageRootPath =
+        path.relative(process.cwd(), resolvePackageRootPath()) || "cpp_libs";
+
+      if (!installed.dependencies.length) {
+        console.log(`No installed packages found in ${packageRootPath}.`);
+        return;
+      }
+
+      console.log(`Installed packages in ${packageRootPath}:`);
+      console.table(
+        installed.dependencies.map((dependency) => ({
+          name: dependency.name,
+          version: dependency.version,
+          installedAt: dependency.installedAt,
+          repository: dependency.repository.url,
+          headers: dependency.install.headers.join(", "),
+        })),
+      );
+    });
+}
