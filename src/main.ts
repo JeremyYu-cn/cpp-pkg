@@ -17,7 +17,7 @@ async function main() {
     .description(
       "Download header-only C/C++ packages into a shared include directory",
     )
-    .version("0.0.1");
+    .version("0.0.2");
 
   registerGetCommand(program);
   registerListCommand(program);

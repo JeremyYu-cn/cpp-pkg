@@ -41,6 +41,20 @@ export function getPublicIncludePath() {
 }
 
 /**
+ * Resolves the root directory used to store extracted full-project sources.
+ */
+export function resolveProjectsRootPath() {
+  return path.join(resolvePackageRootPath(), "projects");
+}
+
+/**
+ * Returns the full-project root path and creates it when necessary.
+ */
+export function getProjectsRootPath() {
+  return ensureDir(resolveProjectsRootPath());
+}
+
+/**
  * Returns the path of the dependency metadata file stored under cpp_libs.
  */
 export function getDepsFilePath() {

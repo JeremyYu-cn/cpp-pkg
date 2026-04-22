@@ -1,4 +1,5 @@
 export type GetPkgOptions = {
+  fullProject?: boolean;
   httpProxy?: string;
   httpsProxy?: string;
 };
@@ -18,7 +19,7 @@ export type InstalledDependency = {
     publishedAt: string | null;
   };
   source: {
-    type: "github-release";
+    type: "github-release" | "github-repository";
     archiveName: string;
     archiveUrl: string;
   };

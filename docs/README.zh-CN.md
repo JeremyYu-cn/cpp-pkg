@@ -21,6 +21,7 @@ npm run dev -- get https://github.com/nlohmann/json
 
 ```bash
 cppkg-cli get <github-repo-url>
+cppkg-cli get --full-project <github-repo-url-or-api-url>
 cppkg-cli list
 cppkg-cli remove <package>
 cppkg-cli update [package]
@@ -33,6 +34,13 @@ cppkg-cli update [package]
 ```bash
 cppkg-cli get https://github.com/nlohmann/json
 cppkg-cli get https://github.com/fmtlib/fmt
+```
+
+下载并解压整个项目：
+
+```bash
+cppkg-cli get --full-project https://api.github.com/repos/espruino/Espruino
+cppkg-cli get --full-project https://github.com/espruino/Espruino
 ```
 
 查看已安装包：
@@ -82,14 +90,30 @@ your-project/
             └── format.h
 ```
 
+当使用 `--full-project` 时，整个仓库源码会被解压到 `./cpp_libs/projects/<owner>_<repo>`：
+
+```text
+your-project/
+└── cpp_libs/
+    ├── deps.json
+    ├── include/
+    └── projects/
+        └── espruino_Espruino/
+            ├── src/
+            ├── libs/
+            ├── targets/
+            └── README.md
+```
+
 处理规则：
 
 - 只保留压缩包里可用的 `include` 目录内容。
 - 会把 `include/xxx` 下的内容直接归并到 `./cpp_libs/include`。
 - 已安装包的信息会记录到 `./cpp_libs/deps.json`，包括版本、安装时间、仓库 URL、归档 URL 和实际落盘路径。
+- `cppkg-cli get --full-project` 会下载仓库默认分支的源码归档，并解压到 `./cpp_libs/projects`。
 - `cppkg-cli remove` 会根据记录的元数据删除当前包的文件，并尽量保留仍被其他包引用的共享路径。
-- `cppkg-cli update` 会先清理当前包的已记录文件，再重新从 GitHub release 安装指定包或全部包。
-- 如果 release 没有单独的 zip 资源，会退回到 GitHub release 的源码 `zipball`。
+- `cppkg-cli update` 会先清理当前包的已记录文件，再按记录下来的 GitHub 来源重新安装指定包或全部包。
+- 在头文件模式下，如果 release 没有单独的 zip 资源，会退回到 GitHub 源码 `zipball`。
 
 ### 开发
 

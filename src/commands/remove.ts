@@ -15,9 +15,7 @@ export function registerRemoveCommand(program: Command) {
     .action(async (selector) => {
       const result = await removeInstalledPackage(selector);
 
-      console.log(
-        `Removed ${result.dependency.name} from ${result.includePath}.`,
-      );
+      console.log(`Removed ${result.dependency.name} from ${result.installPath}.`);
       console.log(`Deleted tracked paths: ${result.removedPaths.length}`);
 
       if (result.skippedPaths.length) {

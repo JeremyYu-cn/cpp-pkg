@@ -21,6 +21,7 @@ npm run dev -- get https://github.com/nlohmann/json
 
 ```bash
 cppkg-cli get <github-repo-url>
+cppkg-cli get --full-project <github-repo-url-or-api-url>
 cppkg-cli list
 cppkg-cli remove <package_name>
 cppkg-cli update <package_name>
@@ -33,6 +34,13 @@ Install a package:
 ```bash
 cppkg-cli get https://github.com/nlohmann/json
 cppkg-cli get https://github.com/fmtlib/fmt
+```
+
+Download and extract a full project:
+
+```bash
+cppkg-cli get --full-project https://api.github.com/repos/espruino/Espruino
+cppkg-cli get --full-project https://github.com/espruino/Espruino
 ```
 
 List installed packages:
@@ -82,14 +90,30 @@ your-project/
             └── format.h
 ```
 
+When `--full-project` is used, the whole repository source tree is extracted into `./cpp_libs/projects/<owner>_<repo>`:
+
+```text
+your-project/
+└── cpp_libs/
+    ├── deps.json
+    ├── include/
+    └── projects/
+        └── espruino_Espruino/
+            ├── src/
+            ├── libs/
+            ├── targets/
+            └── README.md
+```
+
 Behavior:
 
 - Only usable `include` directory content is kept from the downloaded archive.
 - Package content under `include/xxx` is merged directly into `./cpp_libs/include`.
 - Installed package metadata is recorded in `./cpp_libs/deps.json`, including version, install time, repository URL, archive URL, and tracked installed paths.
+- `cppkg-cli get --full-project` downloads the repository source archive from the default branch and extracts it into `./cpp_libs/projects`.
 - `cppkg-cli remove` deletes installed files based on the tracked metadata and keeps shared paths that are still referenced by other packages.
-- `cppkg-cli update` refreshes one package or all packages by cleaning tracked files first and then reinstalling from GitHub releases.
-- If a release does not provide a separate zip asset, the CLI falls back to the GitHub release source `zipball`.
+- `cppkg-cli update` refreshes one package or all packages by cleaning tracked files first and then reinstalling from the recorded GitHub source.
+- In header-only mode, if a release does not provide a separate zip asset, the CLI falls back to the GitHub source `zipball`.
 
 ### Development
 

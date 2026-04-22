@@ -3,7 +3,6 @@ import { promises as fsp } from "node:fs";
 import path from "node:path";
 import {
   resolvePackageRootPath,
-  resolvePublicIncludePath,
 } from "../public/packagePath";
 import {
   getTrackedInstallPaths,
@@ -14,7 +13,7 @@ import {
 import { getVCPkg } from "./download";
 
 type RemoveFilesResult = {
-  includePath: string;
+  installPath: string;
   removedPaths: string[];
   skippedPaths: string[];
 };
@@ -157,18 +156,24 @@ async function removeDependencyFiles(
   dependency: InstalledDependency,
   otherDependencies: InstalledDependency[],
 ): Promise<RemoveFilesResult> {
-  const includeRootPath = resolvePublicIncludePath();
-  const includePath =
-    path.relative(process.cwd(), includeRootPath) || "cpp_libs/include";
+  const installRootPath = path.resolve(process.cwd(), dependency.install.target);
+  const installPath =
+    path.relative(process.cwd(), installRootPath) || dependency.install.target;
   const ownPaths = getTrackedInstallPaths(dependency).sort(compareByDepthDescending);
   const otherClaimedPaths = new Set(
-    otherDependencies.flatMap((item) => getTrackedInstallPaths(item)),
+    otherDependencies
+      .filter(
+        (item) =>
+          normalizeTrackedPath(item.install.target) ===
+          normalizeTrackedPath(dependency.install.target),
+      )
+      .flatMap((item) => getTrackedInstallPaths(item)),
   );
   const removedPaths: string[] = [];
   const skippedPaths: string[] = [];
 
   for (const targetPath of ownPaths) {
-    const filesystemPath = toFilesystemPath(includeRootPath, targetPath);
+    const filesystemPath = toFilesystemPath(installRootPath, targetPath);
 
     try {
       const stat = await fsp.lstat(filesystemPath);
@@ -217,7 +222,7 @@ async function removeDependencyFiles(
       continue;
     }
 
-    const filesystemPath = toFilesystemPath(includeRootPath, directoryPath);
+    const filesystemPath = toFilesystemPath(installRootPath, directoryPath);
 
     try {
       const entries = await fsp.readdir(filesystemPath);
@@ -240,8 +245,26 @@ async function removeDependencyFiles(
     }
   }
 
+  try {
+    const rootEntries = await fsp.readdir(installRootPath);
+
+    if (!rootEntries.length) {
+      await fsp.rmdir(installRootPath);
+    }
+  } catch (error: unknown) {
+    const nodeError = error as NodeJS.ErrnoException;
+
+    if (
+      nodeError.code !== "ENOENT" &&
+      nodeError.code !== "ENOTDIR" &&
+      nodeError.code !== "ENOTEMPTY"
+    ) {
+      throw error;
+    }
+  }
+
   return {
-    includePath,
+    installPath,
     removedPaths: removedPaths.sort(compareByDepthDescending),
     skippedPaths: skippedPaths.sort(compareByDepthDescending),
   };
@@ -317,7 +340,10 @@ export async function updateInstalledPackages(
       );
     }
 
-    await getVCPkg(dependency.repository.url, options);
+    await getVCPkg(dependency.repository.url, {
+      ...options,
+      fullProject: dependency.type === "need-compile",
+    });
     updatedDependencies.push(dependency);
   }
 

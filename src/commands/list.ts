@@ -24,8 +24,10 @@ export function registerListCommand(program: Command) {
       console.table(
         installed.dependencies.map((dependency) => ({
           name: dependency.name,
+          type: dependency.type,
           version: dependency.version,
           installedAt: dependency.installedAt,
+          target: dependency.install.target,
           repository: dependency.repository.url,
           headers: dependency.install.headers.join(", "),
         })),

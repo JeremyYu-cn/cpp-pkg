@@ -8,12 +8,13 @@ export function registerGetCommand(program: Command) {
   program
     .command("get")
     .description(
-      "Download the latest GitHub release headers into ./cpp_libs/include",
+      "Download headers or the full GitHub project into the local cpp_libs directory",
     )
     .argument(
       "<repo-url>",
-      "GitHub repository URL, for example https://github.com/nlohmann/json",
+      "GitHub repository URL or API repository URL, for example https://github.com/nlohmann/json or https://api.github.com/repos/espruino/Espruino",
     )
+    .option("--full-project", "Download and extract the whole project source tree")
     .option("--http-proxy <url>", "HTTP request proxy")
     .option("--https-proxy <url>", "HTTPS request proxy")
     .action(async (repoURL, options) => {
