@@ -66,12 +66,6 @@ async function selectHeaderArchive(
     if (prepared.includeDirs.length) {
       return prepared;
     }
-
-    console.log(
-      archive.kind === "github-release" || archive.kind === "gitee-release"
-        ? `Release archive ${archive.label} does not contain a usable include directory`
-        : `Repository archive ${archive.label} does not contain a usable include directory`,
-    );
   }
 
   return null;
@@ -124,9 +118,15 @@ async function installReleaseAwareRepository<TRelease extends ProviderRelease>(
   );
 
   if (!preparedHeaderArchive) {
-    throw new Error(
-      `No usable include directory was found for ${repoPath} even though a release exists.`,
+    const prepared = await prepareArchive(
+      tempDir,
+      packageName,
+      repositoryArchive,
+      "project",
+      options,
     );
+    await installProjectPackage(inputSource, release, prepared);
+    return;
   }
 
   await installIncludePackage(inputSource, release, preparedHeaderArchive);

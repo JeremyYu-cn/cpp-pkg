@@ -1,6 +1,6 @@
 # cppkg-cli
 
-A CLI for downloading C/C++ packages from GitHub, Gitee, or remote zip archives. Repository sources with published releases are treated as header-style packages and installed into `./cpp_libs/include`. Repository sources without releases, along with direct remote zip archive URLs, are treated as full projects and extracted into `./cpp_libs/projects`.
+A CLI for downloading C/C++ packages from GitHub, Gitee, or remote zip archives. Repository sources with published releases are installed into `./cpp_libs/include` when their archives expose a usable `include` directory; otherwise they fall back to full-project installs under `./cpp_libs/projects`. Repository sources without releases, along with direct remote zip archive URLs, are treated as full projects and extracted into `./cpp_libs/projects`.
 
 [简体中文](./docs/README.zh-CN.md)
 
@@ -126,9 +126,9 @@ Behavior:
 
 - `cppkg-cli get` accepts GitHub repository URLs, GitHub API repository URLs, Gitee repository URLs, Gitee API repository URLs, and direct remote zip archive URLs.
 - GitHub and Gitee repository inputs are checked for a published release through the corresponding provider API.
-- If a release exists, the CLI installs reusable headers into `./cpp_libs/include`.
+- If a release exists, the CLI first tries to install reusable headers into `./cpp_libs/include`.
 - In release mode, the CLI first tries the release archive and then retries with the repository archive when the release archive does not contain a usable `include` directory.
-- If neither archive contains a usable `include` directory, the command fails instead of silently installing the whole repository.
+- If neither archive contains a usable `include` directory, the CLI falls back to installing the repository as a full project under `./cpp_libs/projects/<owner>_<repo>`.
 - If no release exists, the CLI downloads the default-branch repository archive and extracts it into `./cpp_libs/projects/<owner>_<repo>`.
 - Direct remote zip archive URLs are installed as full projects because there is no releases API to classify them as reusable header packages.
 - Direct archive URLs are installed into a sanitized directory name derived from the source URL.

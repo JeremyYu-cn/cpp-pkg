@@ -17,7 +17,7 @@ async function main() {
     .description(
       "Download C/C++ packages into a shared include directory or project workspace",
     )
-    .version("0.0.3");
+    .version("0.0.4");
 
   registerGetCommand(program);
   registerListCommand(program);

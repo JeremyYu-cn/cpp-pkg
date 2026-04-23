@@ -2,7 +2,7 @@
 
 [English](../README.md)
 
-这是一个面向 C/C++ 包的下载 CLI，支持 GitHub、Gitee 和通用远程 zip 压缩包。带有已发布 release 的仓库会被当成头文件包，安装到 `./cpp_libs/include`；没有 release 的仓库，以及直接给出的远程 zip 压缩包 URL，会被当成完整项目，解压到 `./cpp_libs/projects`。
+这是一个面向 C/C++ 包的下载 CLI，支持 GitHub、Gitee 和通用远程 zip 压缩包。带有已发布 release 的仓库，如果归档里存在可用的 `include` 目录，就会按头文件包安装到 `./cpp_libs/include`；如果没有可用的 `include` 目录，则会回退成完整项目安装到 `./cpp_libs/projects`。没有 release 的仓库，以及直接给出的远程 zip 压缩包 URL，也会被当成完整项目解压到 `./cpp_libs/projects`。
 
 ### 安装
 
@@ -126,9 +126,9 @@ your-project/
 
 - `cppkg-cli get` 支持 GitHub 仓库 URL、GitHub API 仓库 URL、Gitee 仓库 URL、Gitee API 仓库 URL，以及直接远程 zip 压缩包 URL。
 - 对于 GitHub 和 Gitee 仓库输入，CLI 会先通过对应平台的 API 检查仓库是否存在已发布的 release。
-- 如果存在 release，就按头文件包处理并安装到 `./cpp_libs/include`。
+- 如果存在 release，会先尝试按头文件包处理并安装到 `./cpp_libs/include`。
 - 在 release 模式下，如果 release 归档里没有可用的 `include` 目录，会继续尝试默认分支的仓库源码归档。
-- 如果 release 归档和仓库源码归档里都没有可用的 `include` 目录，命令会直接失败，不会静默改成整仓安装。
+- 如果 release 归档和仓库源码归档里都没有可用的 `include` 目录，就会回退成整仓安装到 `./cpp_libs/projects/<owner>_<repo>`。
 - 如果仓库不存在 release，就会下载默认分支的仓库源码归档，并解压到 `./cpp_libs/projects/<owner>_<repo>`。
 - 对于直接远程 zip 压缩包 URL，因为没有 releases API 可用，所以会按完整项目安装到 `./cpp_libs/projects`。
 - 直接 archive URL 会安装到一个由来源 URL 生成的清洗后目录名里。
