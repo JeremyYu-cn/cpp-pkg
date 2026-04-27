@@ -24,6 +24,12 @@ export function registerGetCommand(program: Command) {
       "--full-project",
       "Install the package as a full project and skip include-directory detection",
     )
+    .option("--tag <tag>", "Install a specific release tag or repository tag")
+    .option("--branch <branch>", "Install a specific repository branch")
+    .option(
+      "--prerelease",
+      "Allow prerelease versions when selecting the latest release",
+    )
     .option("--http-proxy <url>", "HTTP request proxy, overrides config")
     .option("--https-proxy <url>", "HTTPS request proxy, overrides config")
     .action(async (repoURLs: string[], options: GetPkgOptions) => {

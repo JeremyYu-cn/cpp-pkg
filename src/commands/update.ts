@@ -19,6 +19,15 @@ export function registerUpdateCommand(program: Command) {
       "--full-project",
       "Force full-project reinstall; without this flag the recorded install mode is reused",
     )
+    .option(
+      "--tag <tag>",
+      "Update one package from a specific release tag or repository tag",
+    )
+    .option("--branch <branch>", "Update one package from a specific branch")
+    .option(
+      "--prerelease",
+      "Allow prerelease versions when selecting the latest release",
+    )
     .option("--http-proxy <url>", "HTTP request proxy, overrides config")
     .option("--https-proxy <url>", "HTTPS request proxy, overrides config")
     .action(async (selector, options) => {

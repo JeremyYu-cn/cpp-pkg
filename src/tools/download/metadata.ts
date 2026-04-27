@@ -1,9 +1,45 @@
-import type { InstalledDependency } from "../../types/global";
+import type {
+  GetPkgOptions,
+  InstalledDependency,
+  SourceRequest,
+} from "../../types/global";
 import type {
   ArchiveDescriptor,
   ProviderRelease,
   ResolvedInputSource,
 } from "./types";
+
+function getSourceRequest(
+  inputSource: ResolvedInputSource,
+  options: GetPkgOptions,
+): SourceRequest {
+  if (inputSource.kind === "archive-url") {
+    return {
+      type: "archive-url",
+      value: inputSource.repositoryUrl,
+    };
+  }
+
+  if (options.tag) {
+    return {
+      type: "tag",
+      value: options.tag,
+    };
+  }
+
+  if (options.branch) {
+    return {
+      type: "branch",
+      value: options.branch,
+    };
+  }
+
+  return {
+    type: "latest-release",
+    value: null,
+    ...(options.prerelease ? { includePrerelease: true } : {}),
+  };
+}
 
 /**
  * Builds the metadata record written to cpp_libs/deps.json after installation.
@@ -17,6 +53,7 @@ export function buildInstalledDependency(
   installedPaths: string[],
   installType: InstalledDependency["type"],
   installMode: InstalledDependency["install"]["mode"],
+  options: GetPkgOptions = {},
 ): InstalledDependency {
   const releaseMetadata =
     archive.kind === "github-release" || archive.kind === "gitee-release"
@@ -44,6 +81,7 @@ export function buildInstalledDependency(
       type: archive.kind,
       archiveName: archive.label,
       archiveUrl: archive.url,
+      requested: getSourceRequest(inputSource, options),
     },
     install: {
       mode: installMode,

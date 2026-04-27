@@ -104,6 +104,47 @@ function resolveInstalledDependency(
   return matches[0]!;
 }
 
+function hasExplicitVersionOption(options: GetPkgOptions) {
+  return Boolean(options.tag || options.branch);
+}
+
+function getUpdatedPackageOptions(
+  dependency: InstalledDependency,
+  options: GetPkgOptions,
+) {
+  const updatedOptions: GetPkgOptions = {
+    ...options,
+    fullProject: options.fullProject || dependency.install.mode === "full-project",
+  };
+  const requested = dependency.source.requested;
+
+  if (options.tag) {
+    updatedOptions.tag = options.tag;
+    delete updatedOptions.branch;
+    return updatedOptions;
+  }
+
+  if (options.branch) {
+    updatedOptions.branch = options.branch;
+    delete updatedOptions.tag;
+    return updatedOptions;
+  }
+
+  if (requested?.type === "tag" && requested.value) {
+    updatedOptions.tag = requested.value;
+    delete updatedOptions.branch;
+  } else if (requested?.type === "branch" && requested.value) {
+    updatedOptions.branch = requested.value;
+    delete updatedOptions.tag;
+  }
+
+  if (requested?.includePrerelease && options.prerelease === undefined) {
+    updatedOptions.prerelease = true;
+  }
+
+  return updatedOptions;
+}
+
 /**
  * Converts a tracked install path back into a filesystem path under the include root.
  */
@@ -316,6 +357,10 @@ export async function updateInstalledPackages(
   selector: string | undefined,
   options: GetPkgOptions = {},
 ) {
+  if (!selector && hasExplicitVersionOption(options)) {
+    throw new Error("Options --tag and --branch require a package selector.");
+  }
+
   const installed = await readInstalledDependencies();
 
   if (!installed.dependencies.length) {
@@ -358,11 +403,10 @@ export async function updateInstalledPackages(
       );
     }
 
-    await getVCPkg(dependency.repository.url, {
-      ...options,
-      fullProject:
-        options.fullProject || dependency.install.mode === "full-project",
-    });
+    await getVCPkg(
+      dependency.repository.url,
+      getUpdatedPackageOptions(dependency, options),
+    );
     updatedDependencies.push(dependency);
   }
 

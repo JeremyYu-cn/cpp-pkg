@@ -66,6 +66,24 @@ cppkg-cli get https://gitee.com/api/v5/repos/mirrors/jsoncpp
 cppkg-cli get https://github.com/espruino/Espruino
 ```
 
+安装指定 release tag 或仓库 tag：
+
+```bash
+cppkg-cli get https://github.com/nlohmann/json --tag v3.12.0
+```
+
+安装指定分支：
+
+```bash
+cppkg-cli get https://github.com/lvgl/lvgl --branch master
+```
+
+解析最新 release 时允许 prerelease：
+
+```bash
+cppkg-cli get https://github.com/owner/repo --prerelease
+```
+
 强制按整仓模式安装：
 
 ```bash
@@ -94,6 +112,13 @@ cppkg-cli update json
 
 ```bash
 cppkg-cli update lvgl --full-project
+```
+
+把一个已安装包更新到新的 tag 或分支：
+
+```bash
+cppkg-cli update json --tag v3.12.0
+cppkg-cli update lvgl --branch master
 ```
 
 更新全部已安装包：
@@ -158,6 +183,9 @@ your-project/
 
 - `cppkg-cli get` 支持通过空格分隔传入一个或多个来源地址。每个来源地址都可以是 GitHub 仓库 URL、GitHub API 仓库 URL、Gitee 仓库 URL、Gitee API 仓库 URL，或直接远程 zip 压缩包 URL。
 - 对于 GitHub 和 Gitee 仓库输入，CLI 会先通过对应平台的 API 检查仓库是否存在已发布的 release。
+- `cppkg-cli get --tag <tag>` 会优先安装匹配的 release tag；如果没有匹配 release，则会退回到这个 tag 对应的仓库源码归档。
+- `cppkg-cli get --branch <branch>` 会安装这个分支对应的仓库源码归档。
+- `cppkg-cli get --prerelease` 会在解析最新 release 时允许 prerelease。显式的 `--tag` 和 `--branch` 不能同时使用。
 - 如果存在 release，会先尝试按头文件包处理并安装到当前配置的 include 目录，默认是 `./cpp_libs/include`。
 - `cppkg-cli get --full-project` 会跳过 `include` 目录探测，直接按完整项目安装。
 - 在 release 模式下，如果 release 归档里没有可用的 `include` 目录，会继续尝试默认分支的仓库源码归档。
@@ -166,9 +194,9 @@ your-project/
 - 对于直接远程 zip 压缩包 URL，因为没有 releases API 可用，所以会按完整项目安装到 `./cpp_libs/projects`。
 - 直接 archive URL 会安装到一个由来源 URL 生成的清洗后目录名里。
 - 会把 `include/xxx` 下的内容直接归并到当前配置的 include 目录。
-- 已安装包的信息会记录到当前配置的依赖元数据文件里，默认是 `./cpp_libs/deps.json`，包括版本、安装时间、仓库 URL、归档 URL，以及用于删除的顶层目录或文件路径，不会把每个文件都展开记录进去。
+- 已安装包的信息会记录到当前配置的依赖元数据文件里，默认是 `./cpp_libs/deps.json`，包括版本、安装时间、仓库 URL、归档 URL、用户请求的来源选择，以及用于删除的顶层目录或文件路径，不会把每个文件都展开记录进去。
 - `cppkg-cli remove` 会根据记录的元数据删除当前包的文件，并尽量保留仍被其他包引用的共享路径。
-- `cppkg-cli update` 会先清理当前包的已记录文件，再按记录下来的来源 URL 重新安装指定包或全部包，默认会沿用上次记录的安装模式。
+- `cppkg-cli update` 会先清理当前包的已记录文件，再按记录下来的来源 URL 重新安装指定包或全部包，默认会沿用上次记录的安装模式以及已记录的 tag 或 branch 选择。
 - 如果 release 没有单独的 zip 资源，会退回到平台提供的源码归档，比如 GitHub 的 `zipball`。
 
 ### 开发

@@ -66,6 +66,24 @@ Install a repository without releases as a full project:
 cppkg-cli get https://github.com/espruino/Espruino
 ```
 
+Install a specific release tag or repository tag:
+
+```bash
+cppkg-cli get https://github.com/nlohmann/json --tag v3.12.0
+```
+
+Install a specific branch:
+
+```bash
+cppkg-cli get https://github.com/lvgl/lvgl --branch master
+```
+
+Allow prereleases when resolving the latest release:
+
+```bash
+cppkg-cli get https://github.com/owner/repo --prerelease
+```
+
 Force a repository to install as a full project:
 
 ```bash
@@ -94,6 +112,13 @@ Force a full-project reinstall while updating:
 
 ```bash
 cppkg-cli update lvgl --full-project
+```
+
+Update one installed package from a new tag or branch:
+
+```bash
+cppkg-cli update json --tag v3.12.0
+cppkg-cli update lvgl --branch master
 ```
 
 Update all installed packages:
@@ -158,6 +183,9 @@ Behavior:
 
 - `cppkg-cli get` accepts one or more sources separated by spaces. Each source can be a GitHub repository URL, GitHub API repository URL, Gitee repository URL, Gitee API repository URL, or direct remote zip archive URL.
 - GitHub and Gitee repository inputs are checked for a published release through the corresponding provider API.
+- `cppkg-cli get --tag <tag>` installs from a specific release tag when a matching release exists, and otherwise falls back to the repository archive for that tag.
+- `cppkg-cli get --branch <branch>` installs from the repository archive for that branch.
+- `cppkg-cli get --prerelease` allows prerelease entries when resolving the latest release. Explicit `--tag` and `--branch` cannot be used together.
 - If a release exists, the CLI first tries to install reusable headers into the configured include directory, which defaults to `./cpp_libs/include`.
 - `cppkg-cli get --full-project` skips include-directory detection and installs the repository as a full project directly.
 - In release mode, the CLI first tries the release archive and then retries with the repository archive when the release archive does not contain a usable `include` directory.
@@ -166,9 +194,9 @@ Behavior:
 - Direct remote zip archive URLs are installed as full projects because there is no releases API to classify them as reusable header packages.
 - Direct archive URLs are installed into a sanitized directory name derived from the source URL.
 - Package content under `include/xxx` is merged directly into the configured include directory.
-- Installed package metadata is recorded in the configured deps file, which defaults to `./cpp_libs/deps.json`, including version, install time, repository URL, archive URL, and only the top-level installed directories or files tracked for removal.
+- Installed package metadata is recorded in the configured deps file, which defaults to `./cpp_libs/deps.json`, including version, install time, repository URL, archive URL, requested source selection, and only the top-level installed directories or files tracked for removal.
 - `cppkg-cli remove` deletes installed files based on the tracked metadata and keeps shared paths that are still referenced by other packages.
-- `cppkg-cli update` refreshes one package or all packages by cleaning tracked files first and then reinstalling from the recorded source URL, while reusing the recorded install mode by default.
+- `cppkg-cli update` refreshes one package or all packages by cleaning tracked files first and then reinstalling from the recorded source URL, while reusing the recorded install mode and recorded tag or branch selection by default.
 - When a release does not provide a separate zip asset, the CLI falls back to the provider source archive, such as a GitHub `zipball`.
 
 ### Development

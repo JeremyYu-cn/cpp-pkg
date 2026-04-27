@@ -1,6 +1,6 @@
 {
   "name": "cppkg-cli",
-  "version": "0.0.6",
+  "version": "0.1.0",
   "description": "CLI for downloading C/C++ packages into a shared include directory or project workspace",
   "main": "dist/main.js",
   "types": "dist/main.d.ts",
@@ -16,8 +16,9 @@
   "scripts": {
     "build": "node ./scripts/build.mjs",
     "dev": "node --import=tsx ./src/main.ts",
-    "prepack": "npm run build",
-    "test": "node -e \"process.stdout.write('No tests specified\\n')\""
+    "prepack": "npm test",
+    "pretest": "npm run build",
+    "test": "node --test test/*.test.cjs"
   },
   "repository": {
     "type": "git",

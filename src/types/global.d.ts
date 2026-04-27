@@ -2,6 +2,15 @@ export type GetPkgOptions = {
   httpProxy?: string;
   httpsProxy?: string;
   fullProject?: boolean;
+  tag?: string;
+  branch?: string;
+  prerelease?: boolean;
+};
+
+export type SourceRequest = {
+  type: "archive-url" | "branch" | "latest-release" | "tag";
+  value: string | null;
+  includePrerelease?: boolean;
 };
 
 export type InstalledDependency = {
@@ -27,6 +36,7 @@ export type InstalledDependency = {
       | "github-repository";
     archiveName: string;
     archiveUrl: string;
+    requested?: SourceRequest;
   };
   install: {
     mode: "include" | "full-project";

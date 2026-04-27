@@ -9,6 +9,7 @@ import type {
   GiteeRepository,
   GitHubReleaseAsset,
   GitHubRepository,
+  ProviderRelease,
   ResolvedInputSource,
 } from "./types";
 
@@ -217,15 +218,36 @@ function isZipAsset(asset: GitHubReleaseAsset) {
 /**
  * Picks the latest non-draft and non-prerelease GitHub release.
  */
-function pickGitHubRelease(releases: GitHubRelease[]) {
-  return releases.find((release) => !release.draft && !release.prerelease);
+function pickGitHubRelease(releases: GitHubRelease[], includePrerelease = false) {
+  return releases.find(
+    (release) =>
+      !release.draft && (includePrerelease || !release.prerelease),
+  );
 }
 
 /**
  * Picks the latest non-prerelease Gitee release.
  */
-function pickGiteeRelease(releases: GiteeRelease[]) {
-  return releases.find((release) => !release.prerelease) ?? null;
+function pickGiteeRelease(releases: GiteeRelease[], includePrerelease = false) {
+  return (
+    releases.find(
+      (release) => includePrerelease || !release.prerelease,
+    ) ?? null
+  );
+}
+
+/**
+ * Finds one release by tag or name.
+ */
+function pickReleaseByTag<TRelease extends ProviderRelease>(
+  releases: TRelease[],
+  tag: string,
+) {
+  return (
+    releases.find(
+      (release) => release.tag_name === tag || release.name === tag,
+    ) ?? null
+  );
 }
 
 /**
@@ -255,11 +277,12 @@ export function pickGitHubReleaseArchive(release: GitHubRelease) {
 export function pickGitHubRepositoryArchive(
   repoPath: string,
   repository: GitHubRepository,
+  ref = repository.default_branch,
 ) {
   return {
     kind: "github-repository" as const,
-    label: `${repository.default_branch}.zip`,
-    url: `https://api.github.com/repos${repoPath}/zipball/${repository.default_branch}`,
+    label: `${ref}.zip`,
+    url: `https://api.github.com/repos${repoPath}/zipball/${encodeURIComponent(ref)}`,
   };
 }
 
@@ -282,11 +305,12 @@ export function pickGiteeReleaseArchive(repoPath: string, release: GiteeRelease)
 export function pickGiteeRepositoryArchive(
   repoPath: string,
   repository: GiteeRepository,
+  ref = repository.default_branch,
 ) {
   return {
     kind: "gitee-repository" as const,
-    label: `${repository.default_branch}.zip`,
-    url: `https://gitee.com${repoPath}/repository/archive/${encodeURIComponent(repository.default_branch)}.zip`,
+    label: `${ref}.zip`,
+    url: `https://gitee.com${repoPath}/repository/archive/${encodeURIComponent(ref)}.zip`,
   };
 }
 
@@ -353,7 +377,11 @@ export async function fetchLatestGitHubRelease(
     },
   );
 
-  return pickGitHubRelease(res.data) ?? null;
+  if (options.tag) {
+    return pickReleaseByTag(res.data, options.tag);
+  }
+
+  return pickGitHubRelease(res.data, options.prerelease) ?? null;
 }
 
 /**
@@ -375,5 +403,9 @@ export async function fetchLatestGiteeRelease(
     },
   );
 
-  return pickGiteeRelease(res.data);
+  if (options.tag) {
+    return pickReleaseByTag(res.data, options.tag);
+  }
+
+  return pickGiteeRelease(res.data, options.prerelease);
 }

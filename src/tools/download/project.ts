@@ -1,3 +1,4 @@
+import type { GetPkgOptions } from "../../types/global";
 import type { PreparedArchive, ProviderRelease, ResolvedInputSource } from "./types";
 import { promises as fsp } from "node:fs";
 import path from "node:path";
@@ -45,6 +46,7 @@ export async function installProjectPackage(
   inputSource: ResolvedInputSource,
   release: ProviderRelease | null,
   preparedArchive: PreparedArchive,
+  options: GetPkgOptions = {},
 ) {
   const projectsRootPath = getProjectsRootPath();
   const installRootPath = path.join(
@@ -66,6 +68,7 @@ export async function installProjectPackage(
     installed.paths,
     "need-compile",
     "full-project",
+    options,
   );
 
   await upsertInstalledDependency(installedDependency);

@@ -1,5 +1,6 @@
 import type { ResolvedInputSource } from "./types";
 import type { ProviderRelease, PreparedArchive } from "./types";
+import type { GetPkgOptions } from "../../types/global";
 import { promises as fsp } from "node:fs";
 import path from "node:path";
 import { getPublicIncludePath } from "../../public/packagePath";
@@ -110,6 +111,7 @@ export async function installIncludePackage(
   inputSource: ResolvedInputSource,
   release: ProviderRelease | null,
   preparedArchive: PreparedArchive,
+  options: GetPkgOptions = {},
 ) {
   const installRootPath = getPublicIncludePath();
   const installPath = path.relative(process.cwd(), installRootPath) || "cpp_libs";
@@ -126,6 +128,7 @@ export async function installIncludePackage(
     installed.paths,
     "header-only",
     "include",
+    options,
   );
 
   await upsertInstalledDependency(installedDependency);

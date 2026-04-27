@@ -25,6 +25,7 @@ import {
 } from "./sources";
 
 type ReleaseBackedRepositoryContext<TRelease extends ProviderRelease> = {
+  detectHeadersWithoutRelease?: boolean;
   inputSource: ResolvedGiteeRepositoryInput | ResolvedGitHubRepositoryInput;
   options: GetPkgOptions;
   packageName: string;
@@ -34,6 +35,44 @@ type ReleaseBackedRepositoryContext<TRelease extends ProviderRelease> = {
   repositoryArchive: ArchiveDescriptor;
   tempDir: string;
 };
+
+function normalizeRefOption(value: string | undefined, optionName: string) {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  const normalized = value.trim();
+
+  if (!normalized) {
+    throw new Error(`Option --${optionName} cannot be empty.`);
+  }
+
+  return normalized;
+}
+
+function normalizeGetPkgOptions(options: GetPkgOptions) {
+  const tag = normalizeRefOption(options.tag, "tag");
+  const branch = normalizeRefOption(options.branch, "branch");
+  const normalizedOptions: GetPkgOptions = { ...options };
+
+  if (tag && branch) {
+    throw new Error("Options --tag and --branch cannot be used together.");
+  }
+
+  if (tag) {
+    normalizedOptions.tag = tag;
+  } else {
+    delete normalizedOptions.tag;
+  }
+
+  if (branch) {
+    normalizedOptions.branch = branch;
+  } else {
+    delete normalizedOptions.branch;
+  }
+
+  return normalizedOptions;
+}
 
 /**
  * Finds the first archive candidate that contains a usable include directory.
@@ -79,6 +118,7 @@ async function installReleaseAwareRepository<TRelease extends ProviderRelease>(
   context: ReleaseBackedRepositoryContext<TRelease>,
 ) {
   const {
+    detectHeadersWithoutRelease = false,
     inputSource,
     options,
     packageName,
@@ -103,14 +143,45 @@ async function installReleaseAwareRepository<TRelease extends ProviderRelease>(
       "project",
       options,
     );
-    await installProjectPackage(inputSource, release, prepared);
+    await installProjectPackage(inputSource, release, prepared, options);
     return;
   }
 
   if (!release) {
-    logger.warn(
-      `No published release found for ${repoPath}, installing the repository archive from ${repositoryArchive.label.replace(/\.zip$/i, "")}`,
-    );
+    const repositoryArchiveRef = repositoryArchive.label.replace(/\.zip$/i, "");
+
+    if (options.branch) {
+      logger.info(
+        `Installing ${repoPath} from branch ${repositoryArchiveRef}`,
+      );
+    } else if (options.tag) {
+      logger.warn(
+        `No release found for tag ${options.tag}, installing the repository archive for ${repositoryArchiveRef}`,
+      );
+    } else {
+      logger.warn(
+        `No published release found for ${repoPath}, installing the repository archive from ${repositoryArchiveRef}`,
+      );
+    }
+
+    const preparedHeaderArchive = detectHeadersWithoutRelease
+      ? await selectHeaderArchive(
+          tempDir,
+          packageName,
+          [repositoryArchive],
+          options,
+        )
+      : null;
+
+    if (preparedHeaderArchive) {
+      await installIncludePackage(
+        inputSource,
+        null,
+        preparedHeaderArchive,
+        options,
+      );
+      return;
+    }
 
     const prepared = await prepareArchive(
       tempDir,
@@ -119,7 +190,7 @@ async function installReleaseAwareRepository<TRelease extends ProviderRelease>(
       "project",
       options,
     );
-    await installProjectPackage(inputSource, null, prepared);
+    await installProjectPackage(inputSource, null, prepared, options);
     return;
   }
 
@@ -142,23 +213,30 @@ async function installReleaseAwareRepository<TRelease extends ProviderRelease>(
       "project",
       options,
     );
-    await installProjectPackage(inputSource, release, prepared);
+    await installProjectPackage(inputSource, release, prepared, options);
     return;
   }
 
-  await installIncludePackage(inputSource, release, preparedHeaderArchive);
+  await installIncludePackage(inputSource, release, preparedHeaderArchive, options);
 }
 
 /**
  * Downloads, extracts, installs, and records one GitHub-hosted or direct-archive C/C++ package.
  */
 export async function getVCPkg(repoURL: string, options: GetPkgOptions = {}) {
+  const normalizedOptions = normalizeGetPkgOptions(options);
   const inputSource = resolveInputSource(repoURL);
   const packageName = inputSource.packageName;
   const tempDir = await fsp.mkdtemp(path.join(os.tmpdir(), "cppkg-cli-"));
 
   try {
     if (inputSource.kind === "archive-url") {
+      if (normalizedOptions.tag || normalizedOptions.branch) {
+        throw new Error(
+          "Options --tag and --branch can only be used with GitHub or Gitee repository URLs.",
+        );
+      }
+
       logger.info(`Resolving install mode for ${inputSource.repositoryUrl}`);
       logger.info(
         `No GitHub releases API is available for ${inputSource.repositoryUrl}, installing the archive as a full project`,
@@ -169,25 +247,29 @@ export async function getVCPkg(repoURL: string, options: GetPkgOptions = {}) {
         packageName,
         inputSource.archive,
         "project",
-        options,
+        normalizedOptions,
       );
-      await installProjectPackage(inputSource, null, prepared);
+      await installProjectPackage(inputSource, null, prepared, normalizedOptions);
       return;
     }
 
     if (inputSource.kind === "gitee-repository") {
       const repository = await fetchGiteeRepository(
         inputSource.repositoryPath,
-        options,
+        normalizedOptions,
       );
-      const release = await fetchLatestGiteeRelease(
-        inputSource.repositoryPath,
-        options,
-      );
+      const release = normalizedOptions.branch
+        ? null
+        : await fetchLatestGiteeRelease(
+            inputSource.repositoryPath,
+            normalizedOptions,
+          );
+      const repositoryRef = normalizedOptions.branch || normalizedOptions.tag;
 
       await installReleaseAwareRepository({
+        detectHeadersWithoutRelease: Boolean(repositoryRef),
         inputSource,
-        options,
+        options: normalizedOptions,
         packageName,
         release,
         releaseArchive: (nextRelease) =>
@@ -196,6 +278,7 @@ export async function getVCPkg(repoURL: string, options: GetPkgOptions = {}) {
         repositoryArchive: pickGiteeRepositoryArchive(
           inputSource.repositoryPath,
           repository,
+          repositoryRef,
         ),
         tempDir,
       });
@@ -204,16 +287,20 @@ export async function getVCPkg(repoURL: string, options: GetPkgOptions = {}) {
 
     const repository = await fetchGitHubRepository(
       inputSource.repositoryPath,
-      options,
+      normalizedOptions,
     );
-    const release = await fetchLatestGitHubRelease(
-      inputSource.repositoryPath,
-      options,
-    );
+    const release = normalizedOptions.branch
+      ? null
+      : await fetchLatestGitHubRelease(
+          inputSource.repositoryPath,
+          normalizedOptions,
+        );
+    const repositoryRef = normalizedOptions.branch || normalizedOptions.tag;
 
     await installReleaseAwareRepository({
+      detectHeadersWithoutRelease: Boolean(repositoryRef),
       inputSource,
-      options,
+      options: normalizedOptions,
       packageName,
       release,
       releaseArchive: pickGitHubReleaseArchive,
@@ -221,6 +308,7 @@ export async function getVCPkg(repoURL: string, options: GetPkgOptions = {}) {
       repositoryArchive: pickGitHubRepositoryArchive(
         inputSource.repositoryPath,
         repository,
+        repositoryRef,
       ),
       tempDir,
     });
