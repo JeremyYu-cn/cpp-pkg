@@ -70,6 +70,20 @@ test("install help exposes manifest install options", async () => {
   });
 });
 
+test("search help exposes result selection options", async () => {
+  await withTempDir(async (cwd) => {
+    const result = runCli(["search", "--help"], cwd);
+
+    assert.equal(result.status, 0);
+    assert.match(result.stdout, /Search GitHub for C\/C\+\+ libraries sorted by stars/);
+    assert.match(result.stdout, /--limit <number>/);
+    assert.match(result.stdout, /--language <language>/);
+    assert.match(result.stdout, /--install/);
+    assert.match(result.stdout, /--no-interactive/);
+    assert.match(result.stdout, /--select <number>/);
+  });
+});
+
 test("get rejects using tag and branch together before network access", async () => {
   await withTempDir(async (cwd) => {
     const result = runCli(
