@@ -63,6 +63,7 @@ cppkg-cli install json fmt
 | 命令 | 作用 |
 | --- | --- |
 | `cppkg-cli init` | 创建 `./cppkg.json`。 |
+| `cppkg-cli search <query...>` | 在 GitHub 上搜索 C/C++ 库，并按 star 数排序。 |
 | `cppkg-cli install [selector...]` | 安装全部 manifest 依赖，或只安装选中的 manifest 条目。 |
 | `cppkg-cli get <source-url...>` | 直接安装一个或多个包来源。 |
 | `cppkg-cli list` | 查看 `deps.json` 中记录的已安装包。 |
@@ -145,6 +146,42 @@ cppkg-cli get https://github.com/owner/repo --prerelease
 cppkg-cli get https://github.com/lvgl/lvgl --full-project
 cppkg-cli get https://github.com/nlohmann/json --no-cache
 ```
+
+## 搜索包
+
+如果你知道需要哪类库，但还不知道准确仓库 URL，可以使用 `search`。
+
+```bash
+cppkg-cli search json
+cppkg-cli search http client --limit 20
+cppkg-cli search gui --language C++
+```
+
+搜索结果来自 GitHub，并按 star 数排序。默认会搜索 `language:C++` 仓库，并排除 fork 和已归档仓库。
+
+在交互式终端里，`search` 打印结果后会进入选择器。可以用上下键移动，
+Enter 安装，`q` 或 Esc 取消。
+
+在脚本或 CI 里可以用 `--select` 按结果序号非交互选择：
+
+```bash
+cppkg-cli search json --select 1
+```
+
+如果只想打印结果，不进入选择器，可以使用 `--no-interactive`：
+
+```bash
+cppkg-cli search json --no-interactive
+```
+
+搜索并安装时也可以使用安装选项：
+
+```bash
+cppkg-cli search lvgl --full-project
+cppkg-cli search fmt --no-cache
+```
+
+如果需要更高的 GitHub API 限流额度，可以在环境变量里设置 `GITHUB_TOKEN` 或 `GH_TOKEN`。
 
 ## 管理包
 

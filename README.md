@@ -63,6 +63,7 @@ With the default config, installed files are written under `./cpp_libs`, and pac
 | Command | Purpose |
 | --- | --- |
 | `cppkg-cli init` | Create `./cppkg.json`. |
+| `cppkg-cli search <query...>` | Search GitHub for C/C++ libraries sorted by stars. |
 | `cppkg-cli install [selector...]` | Install all manifest dependencies, or selected manifest entries. |
 | `cppkg-cli get <source-url...>` | Install one or more package sources directly. |
 | `cppkg-cli list` | List packages tracked in `deps.json`. |
@@ -145,6 +146,42 @@ cppkg-cli get https://github.com/owner/repo --prerelease
 cppkg-cli get https://github.com/lvgl/lvgl --full-project
 cppkg-cli get https://github.com/nlohmann/json --no-cache
 ```
+
+## Search Packages
+
+Use `search` when you know what kind of library you need but do not know the exact repository URL.
+
+```bash
+cppkg-cli search json
+cppkg-cli search http client --limit 20
+cppkg-cli search gui --language C++
+```
+
+Results are queried from GitHub and sorted by star count. By default the command searches `language:C++` repositories and excludes forks and archived repositories.
+
+In an interactive terminal, `search` opens a selector after printing results.
+Use Up/Down to move, Enter to install, and `q` or Esc to cancel.
+
+Use `--select` for non-interactive selection by result index:
+
+```bash
+cppkg-cli search json --select 1
+```
+
+Use `--no-interactive` when you only want to print results:
+
+```bash
+cppkg-cli search json --no-interactive
+```
+
+Search install options:
+
+```bash
+cppkg-cli search lvgl --full-project
+cppkg-cli search fmt --no-cache
+```
+
+Set `GITHUB_TOKEN` or `GH_TOKEN` in your environment when you need higher GitHub API rate limits.
 
 ## Manage Packages
 

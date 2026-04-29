@@ -326,7 +326,10 @@ test("createPackageManifest writes a manifest in the current working directory",
     const result = createPackageManifest();
     const manifestPath = path.join(cwd, "cppkg.json");
 
-    assert.equal(result.manifestFilePath, manifestPath);
+    assert.equal(
+      await fs.realpath(result.manifestFilePath),
+      await fs.realpath(manifestPath),
+    );
     assert.equal(
       await fs.readFile(manifestPath, "utf8"),
       `${JSON.stringify({ dependencies: {} }, null, 2)}\n`,
