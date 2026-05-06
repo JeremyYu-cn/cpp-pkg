@@ -11,16 +11,21 @@ import {
   requireLockedManifestDependencies,
 } from "../tools/lockfile";
 import { resolveInputSource } from "../tools/download/sources";
+import {
+  getRejectedPackageDownloadTasks,
+  normalizePackageDownloadJobs,
+  runPackageDownloadTasks,
+} from "../tools/download/tasks";
+import { getErrorMessage } from "../tools/errors";
 import { logger } from "../tools/logger";
+import {
+  getManifestDependencySelectorVariants,
+  getSelectorVariants,
+} from "../tools/selectors";
 
 type InstallOptions = Pick<GetPkgOptions, "cache" | "httpProxy" | "httpsProxy"> & {
   frozenLockfile?: boolean;
 };
-type RepositoryProvider = "github" | "gitee";
-
-function getErrorMessage(error: unknown) {
-  return error instanceof Error ? error.message : String(error);
-}
 
 function getDependencyLabel(dependency: ManifestDependency) {
   if (dependency.name) {
@@ -34,122 +39,15 @@ function getDependencyLabel(dependency: ManifestDependency) {
   }
 }
 
-function addSelectorVariant(variants: Set<string>, value: string | undefined) {
-  const normalized = value?.trim().replace(/\/+$/, "");
-
-  if (!normalized) {
-    return;
-  }
-
-  variants.add(normalized);
-  variants.add(normalized.replace(/\.git$/i, ""));
-}
-
-function addRepositoryPathVariants(
-  variants: Set<string>,
-  repositoryPath: string,
-  providers: RepositoryProvider[] = [],
-  includeBarePath = true,
-) {
-  const normalizedPath = repositoryPath.trim().replace(/^\/+|\/+$/g, "")
-    .replace(/\.git$/i, "");
-
-  if (!normalizedPath) {
-    return;
-  }
-
-  if (includeBarePath) {
-    addSelectorVariant(variants, normalizedPath);
-    addSelectorVariant(variants, `/${normalizedPath}`);
-  }
-
-  if (providers.includes("github")) {
-    addSelectorVariant(variants, `github.com/${normalizedPath}`);
-    addSelectorVariant(variants, `https://github.com/${normalizedPath}`);
-  }
-
-  if (providers.includes("gitee")) {
-    addSelectorVariant(variants, `gitee.com/${normalizedPath}`);
-    addSelectorVariant(variants, `https://gitee.com/${normalizedPath}`);
-    addSelectorVariant(variants, `https://gitee.com/${normalizedPath}.git`);
-  }
-}
-
-function resolveURLLikeSelector(value: string) {
-  try {
-    return resolveInputSource(value);
-  } catch {
-    if (/^(?:www\.)?(?:github|gitee)\.com\//i.test(value)) {
-      try {
-        return resolveInputSource(`https://${value}`);
-      } catch {
-        return null;
-      }
-    }
-
-    return null;
-  }
-}
-
-function getSelectorVariants(dependency: ManifestDependency) {
-  const variants = new Set<string>();
-
-  addSelectorVariant(variants, dependency.name);
-  addSelectorVariant(variants, dependency.source);
-
-  try {
-    const source = resolveInputSource(dependency.source);
-
-    addSelectorVariant(variants, source.packageName);
-    addSelectorVariant(variants, source.repositoryUrl);
-
-    if (source.kind === "github-repository") {
-      addRepositoryPathVariants(variants, source.repositoryPath, ["github"]);
-    } else if (source.kind === "gitee-repository") {
-      addRepositoryPathVariants(variants, source.repositoryPath, ["gitee"]);
-    }
-  } catch {
-    // Manifest validation should catch invalid sources before this point.
-  }
-
-  return variants;
-}
-
-function getUserSelectorVariants(selector: string) {
-  const variants = new Set<string>();
-  const normalizedSelector = selector.trim().replace(/\/+$/, "");
-  const source = resolveURLLikeSelector(normalizedSelector);
-
-  addSelectorVariant(variants, normalizedSelector);
-
-  if (source?.kind === "github-repository") {
-    addSelectorVariant(variants, source.repositoryUrl);
-    addRepositoryPathVariants(variants, source.repositoryPath, ["github"], false);
-  } else if (source?.kind === "gitee-repository") {
-    addSelectorVariant(variants, source.repositoryUrl);
-    addRepositoryPathVariants(variants, source.repositoryPath, ["gitee"], false);
-  } else if (!source) {
-    addRepositoryPathVariants(
-      variants,
-      normalizedSelector
-        .replace(/^https?:\/\/(?:www\.)?github\.com\//i, "")
-        .replace(/^github\.com\//i, "")
-        .replace(/^https?:\/\/(?:www\.)?gitee\.com\//i, "")
-        .replace(/^gitee\.com\//i, "")
-        .replace(/^https?:\/\/api\.github\.com\/repos\//i, "")
-        .replace(/^https?:\/\/gitee\.com\/api\/v5\/repos\//i, ""),
-    );
-  }
-
-  return variants;
-}
-
 function matchesDependencySelector(
   dependency: ManifestDependency,
   selector: string,
 ) {
-  const selectorVariants = getUserSelectorVariants(selector);
-  const dependencyVariants = getSelectorVariants(dependency);
+  const selectorVariants = getSelectorVariants(selector);
+  const dependencyVariants = getManifestDependencySelectorVariants(
+    dependency.source,
+    dependency.name,
+  );
 
   return [...selectorVariants].some((variant) => dependencyVariants.has(variant));
 }
@@ -214,6 +112,7 @@ export function registerInstallCommand(program: Command) {
         manifest.dependencies,
         selectors,
       );
+      const taskJobs = normalizePackageDownloadJobs(undefined, dependencies.length);
 
       if (!dependencies.length) {
         logger.warn("No dependencies found in cppkg.json.");
@@ -244,31 +143,18 @@ export function registerInstallCommand(program: Command) {
 
       logger.info(`Installing ${dependencies.length} manifest package(s).`);
 
-      const results = await Promise.allSettled(
-        dependencies.map(async (dependency, index) => {
-          logger.step(
-            index + 1,
-            dependencies.length,
-            `Installing ${getDependencyLabel(dependency)}`,
-          );
-          await getVCPkg(
+      const results = await runPackageDownloadTasks(
+        dependencies.map((dependency, index) => ({
+          item: dependency,
+          label: getDependencyLabel(dependency),
+          run: () => getVCPkg(
             dependency.source,
             getInstallOptions(dependency, index),
-          );
-        }),
+          ),
+        })),
+        { jobs: taskJobs },
       );
-      const failures = results.flatMap((result, index) => {
-        if (result.status === "fulfilled") {
-          return [];
-        }
-
-        return [
-          {
-            dependency: dependencies[index]!,
-            message: getErrorMessage(result.reason),
-          },
-        ];
-      });
+      const failures = getRejectedPackageDownloadTasks(results);
 
       if (!failures.length) {
         logger.success(`Installed ${dependencies.length} package(s).`);
@@ -285,7 +171,7 @@ export function registerInstallCommand(program: Command) {
 
       for (const failure of failures) {
         logger.error(
-          `Failed to install ${getDependencyLabel(failure.dependency)}: ${failure.message}`,
+          `Failed to install ${getDependencyLabel(failure.item)}: ${getErrorMessage(failure.reason)}`,
         );
       }
 

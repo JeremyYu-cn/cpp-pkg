@@ -84,6 +84,15 @@ test("install help exposes manifest install options", async () => {
   });
 });
 
+test("inspect help exposes project include inspection command", async () => {
+  await withTempDir(async (cwd) => {
+    const result = runCli(["inspect", "--help"], cwd);
+
+    assert.equal(result.status, 0);
+    assert.match(result.stdout, /Inspect C\/C\+\+ source includes/);
+  });
+});
+
 test("search help exposes result selection options", async () => {
   await withTempDir(async (cwd) => {
     const result = runCli(["search", "--help"], cwd);

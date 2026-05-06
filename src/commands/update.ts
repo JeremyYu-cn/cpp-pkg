@@ -1,10 +1,8 @@
 import { Command } from "commander";
+import type { GetPkgOptions } from "../types/global";
+import { collectOption } from "./options";
 import { updateInstalledPackages } from "../tools/manage";
 import { logger } from "../tools/logger";
-
-function collectOption(value: string, previous: string[] = []) {
-  return [...previous, value];
-}
 
 /**
  * Registers the command that refreshes one tracked package or all of them.
@@ -52,7 +50,7 @@ export function registerUpdateCommand(program: Command) {
     .option("--no-cache", "Bypass cached archives and refresh downloads")
     .option("--http-proxy <url>", "HTTP request proxy, overrides config")
     .option("--https-proxy <url>", "HTTPS request proxy, overrides config")
-    .action(async (selector, options) => {
+    .action(async (selector: string | undefined, options: GetPkgOptions) => {
       const result = await updateInstalledPackages(selector, options);
 
       if (!result.updatedDependencies.length) {
