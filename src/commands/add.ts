@@ -5,6 +5,7 @@ import {
   type AddManifestDependencyOptions,
 } from "../public/manifest";
 import type { GetPkgOptions } from "../types/global";
+import { collectOption } from "./options";
 import { getVCPkg } from "../tools/download/main";
 import { logger } from "../tools/logger";
 
@@ -12,10 +13,6 @@ type AddOptions = AddManifestDependencyOptions &
   Pick<GetPkgOptions, "cache" | "httpProxy" | "httpsProxy"> & {
     install?: boolean;
   };
-
-function collectOption(value: string, previous: string[] = []) {
-  return [...previous, value];
-}
 
 /**
  * Registers the command that adds one dependency to cppkg.json.

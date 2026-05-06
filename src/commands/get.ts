@@ -1,15 +1,14 @@
 import { Command } from "commander";
 import type { GetPkgOptions } from "../types/global";
+import { collectOption } from "./options";
 import { getVCPkg } from "../tools/download/main";
+import {
+  getRejectedPackageDownloadTasks,
+  normalizePackageDownloadJobs,
+  runPackageDownloadTasks,
+} from "../tools/download/tasks";
+import { getErrorMessage } from "../tools/errors";
 import { logger } from "../tools/logger";
-
-function getErrorMessage(error: unknown) {
-  return error instanceof Error ? error.message : String(error);
-}
-
-function collectOption(value: string, previous: string[] = []) {
-  return [...previous, value];
-}
 
 /**
  * Registers the package download command on the root CLI program.
@@ -55,6 +54,8 @@ export function registerGetCommand(program: Command) {
     .option("--http-proxy <url>", "HTTP request proxy, overrides config")
     .option("--https-proxy <url>", "HTTPS request proxy, overrides config")
     .action(async (repoURLs: string[], options: GetPkgOptions) => {
+      const taskJobs = normalizePackageDownloadJobs(undefined, repoURLs.length);
+
       if (repoURLs.length === 1) {
         await getVCPkg(repoURLs[0]!, options);
         return;
@@ -62,24 +63,15 @@ export function registerGetCommand(program: Command) {
 
       logger.info(`Installing ${repoURLs.length} package(s).`);
 
-      const results = await Promise.allSettled(
-        repoURLs.map(async (repoURL, index) => {
-          logger.step(index + 1, repoURLs.length, `Installing ${repoURL}`);
-          await getVCPkg(repoURL, options);
-        }),
+      const results = await runPackageDownloadTasks(
+        repoURLs.map((repoURL) => ({
+          item: repoURL,
+          label: repoURL,
+          run: () => getVCPkg(repoURL, options),
+        })),
+        { jobs: taskJobs },
       );
-      const failures = results.flatMap((result, index) => {
-        if (result.status === "fulfilled") {
-          return [];
-        }
-
-        return [
-          {
-            message: getErrorMessage(result.reason),
-            repoURL: repoURLs[index]!,
-          },
-        ];
-      });
+      const failures = getRejectedPackageDownloadTasks(results);
 
       if (!failures.length) {
         logger.success(`Installed ${repoURLs.length} package(s).`);
@@ -93,7 +85,9 @@ export function registerGetCommand(program: Command) {
       }
 
       for (const failure of failures) {
-        logger.error(`Failed to install ${failure.repoURL}: ${failure.message}`);
+        logger.error(
+          `Failed to install ${failure.item}: ${getErrorMessage(failure.reason)}`,
+        );
       }
 
       throw new Error(

@@ -9,8 +9,18 @@ import {
   writeInstalledDependencies,
 } from "./deps";
 import { getVCPkg } from "./download/main";
-import { resolveInputSource } from "./download/sources";
+import {
+  getRejectedPackageDownloadTasks,
+  normalizePackageDownloadJobs,
+  runPackageDownloadTasks,
+} from "./download/tasks";
+import { getErrorMessage } from "./errors";
 import { logger } from "./logger";
+import {
+  getInstalledDependencyRepositoryVariants,
+  getInstalledDependencySelectorVariants,
+  getSelectorVariants,
+} from "./selectors";
 
 type RemoveFilesResult = {
   installPath: string;
@@ -39,150 +49,6 @@ function getDependencyIdentity(dependency: InstalledDependency) {
   );
 }
 
-function addSelectorVariant(variants: Set<string>, value: string | undefined) {
-  const normalized = value?.trim().replace(/\/+$/, "");
-
-  if (!normalized) {
-    return;
-  }
-
-  variants.add(normalized);
-  variants.add(normalized.replace(/\.git$/i, ""));
-}
-
-function getRepositoryProvider(value: string) {
-  try {
-    const parsed = new URL(value);
-
-    if (["github.com", "www.github.com", "api.github.com"].includes(parsed.hostname)) {
-      return "github" as const;
-    }
-
-    if (["gitee.com", "www.gitee.com"].includes(parsed.hostname)) {
-      return "gitee" as const;
-    }
-  } catch {
-    // Plain owner/repo selectors are provider-neutral.
-  }
-
-  return null;
-}
-
-function addRepositoryPathVariants(
-  variants: Set<string>,
-  repositoryPath: string,
-  providers: Array<"github" | "gitee"> = [],
-  includeBarePath = true,
-) {
-  const normalizedPath = repositoryPath.trim().replace(/^\/+|\/+$/g, "")
-    .replace(/\.git$/i, "");
-
-  if (!normalizedPath) {
-    return;
-  }
-
-  if (includeBarePath) {
-    addSelectorVariant(variants, normalizedPath);
-    addSelectorVariant(variants, `/${normalizedPath}`);
-  }
-
-  if (providers.includes("github")) {
-    addSelectorVariant(variants, `github.com/${normalizedPath}`);
-    addSelectorVariant(variants, `https://github.com/${normalizedPath}`);
-  }
-
-  if (providers.includes("gitee")) {
-    addSelectorVariant(variants, `gitee.com/${normalizedPath}`);
-    addSelectorVariant(variants, `https://gitee.com/${normalizedPath}`);
-    addSelectorVariant(variants, `https://gitee.com/${normalizedPath}.git`);
-  }
-}
-
-function resolveURLLikeSelector(value: string) {
-  try {
-    return resolveInputSource(value);
-  } catch {
-    if (/^(?:www\.)?(?:github|gitee)\.com\//i.test(value)) {
-      try {
-        return resolveInputSource(`https://${value}`);
-      } catch {
-        return null;
-      }
-    }
-
-    return null;
-  }
-}
-
-function addURLVariants(variants: Set<string>, value: string) {
-  const source = resolveURLLikeSelector(value);
-
-  if (!source) {
-    return;
-  }
-
-  addSelectorVariant(variants, source.repositoryUrl);
-
-  if (source.kind === "github-repository") {
-    addRepositoryPathVariants(variants, source.repositoryPath, ["github"], false);
-  } else if (source.kind === "gitee-repository") {
-    addRepositoryPathVariants(variants, source.repositoryPath, ["gitee"], false);
-  }
-}
-
-/**
- * Expands a package selector into the supported lookup forms.
- */
-function getSelectorVariants(selector: string) {
-  const variants = new Set<string>();
-  const normalizedSelector = selector.trim().replace(/\/+$/, "");
-  const resolvedSource = resolveURLLikeSelector(normalizedSelector);
-
-  addSelectorVariant(variants, normalizedSelector);
-
-  if (resolvedSource) {
-    addURLVariants(variants, normalizedSelector);
-    return [...variants];
-  }
-
-  addRepositoryPathVariants(
-    variants,
-    normalizedSelector
-      .replace(/^https?:\/\/(?:www\.)?github\.com\//i, "")
-      .replace(/^github\.com\//i, "")
-      .replace(/^https?:\/\/(?:www\.)?gitee\.com\//i, "")
-      .replace(/^gitee\.com\//i, "")
-      .replace(/^https?:\/\/api\.github\.com\/repos\//i, "")
-      .replace(/^https?:\/\/gitee\.com\/api\/v5\/repos\//i, ""),
-  );
-
-  return [...variants];
-}
-
-function getDependencyRepositoryVariants(dependency: InstalledDependency) {
-  const variants = new Set<string>();
-  const provider = getRepositoryProvider(dependency.repository.url);
-
-  addSelectorVariant(variants, dependency.repository.path);
-  addSelectorVariant(variants, dependency.repository.url);
-  addURLVariants(variants, dependency.repository.url);
-  addRepositoryPathVariants(
-    variants,
-    dependency.repository.path,
-    provider ? [provider] : [],
-  );
-
-  return variants;
-}
-
-function getDependencySelectorVariants(dependency: InstalledDependency) {
-  const variants = getDependencyRepositoryVariants(dependency);
-
-  addSelectorVariant(variants, dependency.name);
-
-  return variants;
-}
-
 /**
  * Checks whether one installed dependency matches a user-provided selector.
  */
@@ -191,7 +57,7 @@ function matchesDependencySelector(
   selector: string,
 ) {
   const variants = getSelectorVariants(selector);
-  const dependencyVariants = getDependencySelectorVariants(dependency);
+  const dependencyVariants = getInstalledDependencySelectorVariants(dependency);
 
   return variants.some((variant) => dependencyVariants.has(variant));
 }
@@ -213,7 +79,7 @@ function resolveInstalledDependency(
 
   const exactRepositoryMatch = matches.find((dependency) => {
     const variants = getSelectorVariants(selector);
-    const repositoryVariants = getDependencyRepositoryVariants(dependency);
+    const repositoryVariants = getInstalledDependencyRepositoryVariants(dependency);
 
     return variants.some((variant) => repositoryVariants.has(variant));
   });
@@ -290,6 +156,41 @@ function getUpdatedPackageOptions(
   }
 
   return updatedOptions;
+}
+
+async function refreshInstalledPackage(
+  targetSelector: string,
+  options: GetPkgOptions,
+) {
+  const current = await readInstalledDependencies();
+  const dependency = resolveInstalledDependency(
+    current.dependencies,
+    targetSelector,
+  );
+  const otherDependencies = current.dependencies.filter(
+    (item) => getDependencyIdentity(item) !== getDependencyIdentity(dependency),
+  );
+  const removeResult = await removeDependencyFiles(
+    dependency,
+    otherDependencies,
+  );
+
+  logger.info(
+    `Refreshing ${dependency.name} from ${dependency.repository.url} (${removeResult.removedPaths.length} tracked paths cleaned)`,
+  );
+
+  if (removeResult.skippedPaths.length) {
+    logger.warn(
+      `Preserved ${removeResult.skippedPaths.length} shared path(s): ${removeResult.skippedPaths.join(", ")}`,
+    );
+  }
+
+  await getVCPkg(
+    dependency.repository.url,
+    getUpdatedPackageOptions(dependency, options),
+  );
+
+  return dependency;
 }
 
 /**
@@ -504,6 +405,8 @@ export async function updateInstalledPackages(
   selector: string | undefined,
   options: GetPkgOptions = {},
 ) {
+  const packageOptions = options;
+
   if (!selector && hasExplicitVersionOption(options)) {
     throw new Error("Options --tag and --branch require a package selector.");
   }
@@ -523,38 +426,51 @@ export async function updateInstalledPackages(
           .url,
       ]
     : installed.dependencies.map((dependency) => dependency.repository.url);
+  const taskJobs = normalizePackageDownloadJobs(undefined, targetSelectors.length);
 
-  const updatedDependencies: InstalledDependency[] = [];
+  if (targetSelectors.length === 1) {
+    return {
+      updatedDependencies: [
+        await refreshInstalledPackage(targetSelectors[0]!, packageOptions),
+      ],
+    };
+  }
 
-  for (const targetSelector of targetSelectors) {
-    const current = await readInstalledDependencies();
-    const dependency = resolveInstalledDependency(
-      current.dependencies,
-      targetSelector,
-    );
-    const otherDependencies = current.dependencies.filter(
-      (item) => getDependencyIdentity(item) !== getDependencyIdentity(dependency),
-    );
-    const removeResult = await removeDependencyFiles(
-      dependency,
-      otherDependencies,
-    );
+  if (targetSelectors.length > 1) {
+    logger.info(`Updating ${targetSelectors.length} package(s).`);
+  }
 
-    logger.info(
-      `Refreshing ${dependency.name} from ${dependency.repository.url} (${removeResult.removedPaths.length} tracked paths cleaned)`,
-    );
+  const results = await runPackageDownloadTasks<string, InstalledDependency>(
+    targetSelectors.map((targetSelector) => ({
+      item: targetSelector,
+      label: targetSelector,
+      run: () => refreshInstalledPackage(targetSelector, packageOptions),
+    })),
+    { jobs: taskJobs },
+  );
+  const failures = getRejectedPackageDownloadTasks(results);
+  const updatedDependencies = results.flatMap((result) =>
+    result.status === "fulfilled" ? [result.value] : [],
+  );
 
-    if (removeResult.skippedPaths.length) {
+  if (failures.length) {
+    const updatedCount = updatedDependencies.length;
+
+    if (updatedCount > 0) {
       logger.warn(
-        `Preserved ${removeResult.skippedPaths.length} shared path(s): ${removeResult.skippedPaths.join(", ")}`,
+        `Updated ${updatedCount} of ${targetSelectors.length} package(s).`,
       );
     }
 
-    await getVCPkg(
-      dependency.repository.url,
-      getUpdatedPackageOptions(dependency, options),
+    for (const failure of failures) {
+      logger.error(
+        `Failed to update ${failure.item}: ${getErrorMessage(failure.reason)}`,
+      );
+    }
+
+    throw new Error(
+      `Failed to update ${failures.length} of ${targetSelectors.length} package(s).`,
     );
-    updatedDependencies.push(dependency);
   }
 
   return {

@@ -8,6 +8,7 @@ import { registerConfigCommand } from "./commands/config";
 import { registerGetCommand } from "./commands/get";
 import { registerInitCommand } from "./commands/init";
 import { registerInstallCommand } from "./commands/install";
+import { registerInspectCommand } from "./commands/inspect";
 import { registerListCommand } from "./commands/list";
 import { registerRemoveCommand } from "./commands/remove";
 import { registerSearchCommand } from "./commands/search";
@@ -43,6 +44,7 @@ async function main() {
   registerGetCommand(program);
   registerInitCommand(program);
   registerInstallCommand(program);
+  registerInspectCommand(program);
   registerListCommand(program);
   registerRemoveCommand(program);
   registerSearchCommand(program);

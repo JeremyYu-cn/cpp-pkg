@@ -83,6 +83,7 @@ Successful installs, updates, and removals also refresh `./cppkg-lock.json`, whi
 | `cppkg-cli init`                  | Create `./cppkg.json`.                                                    |
 | `cppkg-cli add <source>`          | Add one dependency to `cppkg.json`, optionally installing it.             |
 | `cppkg-cli search <query...>`     | Search GitHub for C/C++ libraries sorted by stars.                        |
+| `cppkg-cli inspect`               | Inspect C/C++ includes and report package needs.                          |
 | `cppkg-cli install [selector...]` | Install all manifest dependencies, or selected manifest entries.          |
 | `cppkg-cli get <source-url...>`   | Install one or more package sources directly.                             |
 | `cppkg-cli list`                  | List packages tracked in `deps.json`.                                     |
@@ -236,6 +237,14 @@ cppkg-cli search fmt --no-cache
 
 Set `GITHUB_TOKEN` or `GH_TOKEN` in your environment when you need higher GitHub API rate limits.
 You can also persist project-level GitHub and Gitee tokens with `cppkg-cli config set githubToken ...` and `cppkg-cli config set giteeToken ...`.
+
+## Inspect Includes
+
+Scan the current project for C/C++ includes and compare detected package candidates with `cppkg.json` and installed metadata:
+
+```bash
+cppkg-cli inspect
+```
 
 ## Manage Packages
 

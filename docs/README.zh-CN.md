@@ -83,6 +83,7 @@ cppkg-cli install --frozen-lockfile
 | `cppkg-cli init`                  | 创建 `./cppkg.json`。                                  |
 | `cppkg-cli add <source>`          | 添加一个依赖到 `cppkg.json`，也可以同时安装。          |
 | `cppkg-cli search <query...>`     | 在 GitHub 上搜索 C/C++ 库，并按 star 数排序。          |
+| `cppkg-cli inspect`               | 扫描 C/C++ include 并报告项目需要的包。                |
 | `cppkg-cli install [selector...]` | 安装全部 manifest 依赖，或只安装选中的 manifest 条目。 |
 | `cppkg-cli get <source-url...>`   | 直接安装一个或多个包来源。                             |
 | `cppkg-cli list`                  | 查看 `deps.json` 中记录的已安装包。                    |
@@ -236,6 +237,14 @@ cppkg-cli search fmt --no-cache
 
 如果需要更高的 GitHub API 限流额度，可以在环境变量里设置 `GITHUB_TOKEN` 或 `GH_TOKEN`。
 也可以用 `cppkg-cli config set githubToken ...` 和 `cppkg-cli config set giteeToken ...` 保存项目级 GitHub/Gitee token，用于私有仓库和下载归档。
+
+## 检查 Include
+
+扫描当前项目的 C/C++ include，并和 `cppkg.json`、已安装元数据对比：
+
+```bash
+cppkg-cli inspect
+```
 
 ## 管理包
 
