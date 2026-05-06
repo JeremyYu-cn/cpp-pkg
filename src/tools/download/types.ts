@@ -25,6 +25,7 @@ export type GiteeRepository = {
 export type ProviderRelease = GitHubRelease | GiteeRelease;
 
 export type ArchiveDescriptor = {
+  headers?: Record<string, string>;
   kind: InstalledDependency["source"]["type"];
   label: string;
   url: string;

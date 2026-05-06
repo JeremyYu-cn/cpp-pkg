@@ -1,8 +1,8 @@
-const test = require("node:test");
-const assert = require("node:assert/strict");
-const fs = require("node:fs/promises");
-const os = require("node:os");
-const path = require("node:path");
+import { test } from "vitest";
+import assert from "node:assert/strict";
+import fs from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
 
 const {
   normalizeTrackedPath,
@@ -13,7 +13,7 @@ const {
 
 const originalCwd = process.cwd();
 
-async function withTempCwd(callback) {
+async function withTempCwd(callback: TempDirCallback) {
   const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "cppkg-deps-test-"));
 
   process.chdir(tempDir);
@@ -26,7 +26,11 @@ async function withTempCwd(callback) {
   }
 }
 
-function createDependency(name, repositoryPath, install = {}) {
+function createDependency(
+  name: string,
+  repositoryPath: string,
+  install: Partial<TestInstallMetadata> = {},
+) {
   return {
     name,
     version: "1.0.0",
@@ -134,7 +138,7 @@ test("writeInstalledDependencies sorts dependencies and top-level paths", async 
     const installed = await readInstalledDependencies();
 
     assert.deepEqual(
-      installed.dependencies.map((dependency) => dependency.name),
+      installed.dependencies.map((dependency: TestDependency) => dependency.name),
       ["fmt", "json"],
     );
     assert.deepEqual(installed.dependencies[1].install.headers, ["nlohmann"]);
@@ -173,7 +177,7 @@ test("upsertInstalledDependency keeps providers separate when repository paths o
     const installed = await readInstalledDependencies();
 
     assert.deepEqual(
-      installed.dependencies.map((dependency) => dependency.name),
+      installed.dependencies.map((dependency: TestDependency) => dependency.name),
       ["gitee-repo", "github-repo"],
     );
   });

@@ -30,7 +30,7 @@ type ReleaseBackedRepositoryContext<TRelease extends ProviderRelease> = {
   options: GetPkgOptions;
   packageName: string;
   release: TRelease | null;
-  releaseArchive: (release: TRelease) => ArchiveDescriptor;
+  releaseArchive: (release: TRelease, options: GetPkgOptions) => ArchiveDescriptor;
   repoPath: string;
   repositoryArchive: ArchiveDescriptor;
   tempDir: string;
@@ -50,9 +50,109 @@ function normalizeRefOption(value: string | undefined, optionName: string) {
   return normalized;
 }
 
+function normalizeRelativeArchivePath(value: string, optionName: string) {
+  const normalized = value.trim().replace(/\\/g, "/").replace(/^\.\/+/, "")
+    .replace(/\/+$/, "");
+
+  if (!normalized) {
+    throw new Error(`Option --${optionName} cannot be empty.`);
+  }
+
+  if (path.posix.isAbsolute(normalized)) {
+    throw new Error(`Option --${optionName} must be a relative archive path.`);
+  }
+
+  const segments = normalized.split("/").filter(Boolean);
+
+  if (!segments.length || segments.some((segment) => segment === "." || segment === "..")) {
+    throw new Error(`Option --${optionName} must stay inside the archive root.`);
+  }
+
+  return segments.join("/");
+}
+
+function normalizeProjectRelativePath(value: string, optionName: string) {
+  const normalized = value.trim().replace(/\\/g, "/").replace(/^\.\/+/, "")
+    .replace(/\/+$/, "");
+
+  if (!normalized) {
+    throw new Error(`Option --${optionName} cannot be empty.`);
+  }
+
+  if (path.isAbsolute(normalized)) {
+    throw new Error(`Option --${optionName} must be a relative project path.`);
+  }
+
+  const segments = normalized.split("/").filter(Boolean);
+
+  if (!segments.length || segments.some((segment) => segment === "." || segment === "..")) {
+    throw new Error(`Option --${optionName} must stay inside the current project.`);
+  }
+
+  return segments.join("/");
+}
+
+function normalizeComponentName(value: string) {
+  const normalized = value.trim();
+
+  if (!normalized) {
+    throw new Error("Option --component cannot be empty.");
+  }
+
+  if (normalized.includes("/") || normalized.includes("\\")) {
+    throw new Error("Option --component must be a top-level entry name.");
+  }
+
+  return normalized;
+}
+
+function normalizeStringList(
+  value: string | string[] | undefined,
+  optionName: string,
+  normalize: (entry: string, optionName: string) => string,
+) {
+  const rawValues = value === undefined ? [] : Array.isArray(value) ? value : [value];
+  const normalized = rawValues.map((entry) => normalize(entry, optionName));
+
+  return [...new Set(normalized)];
+}
+
+function normalizeChecksum(value: string | undefined) {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  const normalized = value.trim().toLowerCase().replace(/^sha256[:=-]/i, "");
+
+  if (!/^[a-f0-9]{64}$/u.test(normalized)) {
+    throw new Error("Option --checksum must be a SHA-256 hex digest.");
+  }
+
+  return normalized;
+}
+
 function normalizeGetPkgOptions(options: GetPkgOptions) {
   const tag = normalizeRefOption(options.tag, "tag");
   const branch = normalizeRefOption(options.branch, "branch");
+  const includePath = normalizeStringList(
+    options.includePath,
+    "include-path",
+    normalizeRelativeArchivePath,
+  );
+  const patches = normalizeStringList(
+    options.patches,
+    "patch",
+    normalizeProjectRelativePath,
+  );
+  const components = normalizeStringList(
+    options.components,
+    "component",
+    (entry) => normalizeComponentName(entry),
+  );
+  const stripPrefix = options.stripPrefix === undefined
+    ? undefined
+    : normalizeRelativeArchivePath(options.stripPrefix, "strip-prefix");
+  const checksum = normalizeChecksum(options.checksum);
   const normalizedOptions: GetPkgOptions = { ...options };
 
   if (tag && branch) {
@@ -69,6 +169,36 @@ function normalizeGetPkgOptions(options: GetPkgOptions) {
     normalizedOptions.branch = branch;
   } else {
     delete normalizedOptions.branch;
+  }
+
+  if (includePath.length) {
+    normalizedOptions.includePath = includePath;
+  } else {
+    delete normalizedOptions.includePath;
+  }
+
+  if (patches.length) {
+    normalizedOptions.patches = patches;
+  } else {
+    delete normalizedOptions.patches;
+  }
+
+  if (components.length) {
+    normalizedOptions.components = components;
+  } else {
+    delete normalizedOptions.components;
+  }
+
+  if (stripPrefix) {
+    normalizedOptions.stripPrefix = stripPrefix;
+  } else {
+    delete normalizedOptions.stripPrefix;
+  }
+
+  if (checksum) {
+    normalizedOptions.checksum = checksum;
+  } else {
+    delete normalizedOptions.checksum;
   }
 
   return normalizedOptions;
@@ -164,7 +294,7 @@ async function installReleaseAwareRepository<TRelease extends ProviderRelease>(
       );
     }
 
-    const preparedHeaderArchive = detectHeadersWithoutRelease
+    const preparedHeaderArchive = detectHeadersWithoutRelease || options.includePath
       ? await selectHeaderArchive(
           tempDir,
           packageName,
@@ -201,7 +331,7 @@ async function installReleaseAwareRepository<TRelease extends ProviderRelease>(
   const preparedHeaderArchive = await selectHeaderArchive(
     tempDir,
     packageName,
-    [releaseArchive(release), repositoryArchive],
+    [releaseArchive(release, options), repositoryArchive],
     options,
   );
 
@@ -249,6 +379,12 @@ export async function getVCPkg(repoURL: string, options: GetPkgOptions = {}) {
         "project",
         normalizedOptions,
       );
+
+      if (!normalizedOptions.fullProject && normalizedOptions.includePath) {
+        await installIncludePackage(inputSource, null, prepared, normalizedOptions);
+        return;
+      }
+
       await installProjectPackage(inputSource, null, prepared, normalizedOptions);
       return;
     }

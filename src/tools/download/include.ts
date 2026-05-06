@@ -42,10 +42,59 @@ async function directoryContainsHeaders(dirPath: string): Promise<boolean> {
   return false;
 }
 
+function resolveSubpath(rootPath: string, relativePath: string) {
+  const resolvedRoot = path.resolve(rootPath);
+  const normalizedPath = relativePath.trim().replace(/\\/g, "/")
+    .replace(/^\.\/+/, "")
+    .replace(/\/+$/, "");
+  const resolvedPath = path.resolve(
+    resolvedRoot,
+    ...normalizedPath.split("/").filter(Boolean),
+  );
+  const relative = path.relative(resolvedRoot, resolvedPath);
+
+  if (relative.startsWith("..") || path.isAbsolute(relative)) {
+    throw new Error(`includePath escapes the archive root: ${relativePath}`);
+  }
+
+  return resolvedPath;
+}
+
+async function collectExplicitIncludeDirs(
+  rootPath: string,
+  includePaths: string[],
+) {
+  const includeDirs: string[] = [];
+
+  for (const includePath of includePaths) {
+    const entryPath = resolveSubpath(rootPath, includePath);
+    const stat = await fsp.stat(entryPath);
+
+    if (!stat.isDirectory()) {
+      throw new Error(`includePath is not a directory: ${includePath}`);
+    }
+
+    if (!await directoryContainsHeaders(entryPath)) {
+      throw new Error(`includePath does not contain headers: ${includePath}`);
+    }
+
+    includeDirs.push(entryPath);
+  }
+
+  return includeDirs;
+}
+
 /**
  * Finds the most relevant include directories inside an extracted archive.
  */
-export async function collectIncludeDirs(rootPath: string): Promise<string[]> {
+export async function collectIncludeDirs(
+  rootPath: string,
+  includePaths: string[] = [],
+): Promise<string[]> {
+  if (includePaths.length) {
+    return collectExplicitIncludeDirs(rootPath, includePaths);
+  }
+
   const entries = await fsp.readdir(rootPath, { withFileTypes: true });
   const includeDirs: string[] = [];
 
@@ -70,15 +119,21 @@ export async function collectIncludeDirs(rootPath: string): Promise<string[]> {
 async function mergeIncludeDirs(
   includeDirs: string[],
   targetIncludeDir: string,
+  components: string[] = [],
 ) {
   await fsp.mkdir(targetIncludeDir, { recursive: true });
 
   const installedEntries = new Set<string>();
+  const selectedComponents = new Set(components);
 
   for (const includeDir of includeDirs) {
     const entries = await fsp.readdir(includeDir, { withFileTypes: true });
 
     for (const entry of entries) {
+      if (selectedComponents.size && !selectedComponents.has(entry.name)) {
+        continue;
+      }
+
       const sourcePath = path.join(includeDir, entry.name);
       const targetPath = path.join(targetIncludeDir, entry.name);
       const relativePath = normalizeTrackedPath(entry.name);
@@ -96,6 +151,12 @@ async function mergeIncludeDirs(
 
       installedEntries.add(relativePath);
     }
+  }
+
+  if (selectedComponents.size && !installedEntries.size) {
+    throw new Error(
+      `No include components matched: ${components.join(", ")}`,
+    );
   }
 
   return {
@@ -118,6 +179,7 @@ export async function installIncludePackage(
   const installed = await mergeIncludeDirs(
     preparedArchive.includeDirs,
     installRootPath,
+    options.components,
   );
   const installedDependency = buildInstalledDependency(
     inputSource,

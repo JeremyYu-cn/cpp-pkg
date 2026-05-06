@@ -1,5 +1,9 @@
 # cppkg-cli
 
+<p align="center">
+  <img src="../assets/icon.png" alt="cppkg-cli icon" width="128" height="128">
+</p>
+
 [English](../README.md)
 
 `cppkg-cli` 是一个面向 C/C++ 包的下载 CLI，可以从 GitHub、Gitee 或远程 zip 压缩包安装包到当前项目目录。它会优先把可复用头文件安装到共享 include 目录；如果包不适合按头文件使用，则回退为完整项目解压。
@@ -74,18 +78,18 @@ cppkg-cli install --frozen-lockfile
 
 ## 命令
 
-| 命令 | 作用 |
-| --- | --- |
-| `cppkg-cli init` | 创建 `./cppkg.json`。 |
-| `cppkg-cli add <source>` | 添加一个依赖到 `cppkg.json`，也可以同时安装。 |
-| `cppkg-cli search <query...>` | 在 GitHub 上搜索 C/C++ 库，并按 star 数排序。 |
+| 命令                              | 作用                                                   |
+| --------------------------------- | ------------------------------------------------------ |
+| `cppkg-cli init`                  | 创建 `./cppkg.json`。                                  |
+| `cppkg-cli add <source>`          | 添加一个依赖到 `cppkg.json`，也可以同时安装。          |
+| `cppkg-cli search <query...>`     | 在 GitHub 上搜索 C/C++ 库，并按 star 数排序。          |
 | `cppkg-cli install [selector...]` | 安装全部 manifest 依赖，或只安装选中的 manifest 条目。 |
-| `cppkg-cli get <source-url...>` | 直接安装一个或多个包来源。 |
-| `cppkg-cli list` | 查看 `deps.json` 中记录的已安装包。 |
-| `cppkg-cli status` | 检查 manifest、锁文件、元数据和已安装文件。 |
-| `cppkg-cli update [selector]` | 更新一个已安装包；不传 selector 时更新全部包。 |
-| `cppkg-cli remove <selector>` | 删除一个已安装包。 |
-| `cppkg-cli config <subcommand>` | 管理 `./cppkg.config.json` 中的项目级默认配置。 |
+| `cppkg-cli get <source-url...>`   | 直接安装一个或多个包来源。                             |
+| `cppkg-cli list`                  | 查看 `deps.json` 中记录的已安装包。                    |
+| `cppkg-cli status`                | 检查 manifest、锁文件、元数据和已安装文件。            |
+| `cppkg-cli update [selector]`     | 更新一个已安装包；不传 selector 时更新全部包。         |
+| `cppkg-cli remove <selector>`     | 删除一个已安装包。                                     |
+| `cppkg-cli config <subcommand>`   | 管理 `./cppkg.config.json` 中的项目级默认配置。        |
 
 每个命令都可以加 `--help` 查看当前支持的选项。
 
@@ -131,16 +135,38 @@ cppkg-cli add gitee.com/mirrors/jsoncpp --full-project
 
 Manifest 对象字段：
 
-| 字段 | 类型 | 说明 |
-| --- | --- | --- |
-| `source` | string | GitHub 仓库 URL、GitHub API 仓库 URL、Gitee 仓库 URL、Gitee API 仓库 URL，或远程 zip URL。 |
-| `name` | string | 数组条目的可选 selector 名称。映射写法里，映射 key 就是依赖名。 |
-| `tag` | string | 安装指定 release tag；如果没有匹配 release，则安装对应的仓库 tag 归档。 |
-| `branch` | string | 安装指定仓库分支。 |
-| `prerelease` | boolean | 解析 latest release 时允许选择 prerelease。 |
-| `fullProject` | boolean | 跳过 include 探测，直接按完整项目安装。 |
+| 字段          | 类型               | 说明                                                                                       |
+| ------------- | ------------------ | ------------------------------------------------------------------------------------------ |
+| `source`      | string             | GitHub 仓库 URL、GitHub API 仓库 URL、Gitee 仓库 URL、Gitee API 仓库 URL，或远程 zip URL。 |
+| `name`        | string             | 数组条目的可选 selector 名称。映射写法里，映射 key 就是依赖名。                            |
+| `tag`         | string             | 安装指定 release tag；如果没有匹配 release，则安装对应的仓库 tag 归档。                    |
+| `branch`      | string             | 安装指定仓库分支。                                                                         |
+| `prerelease`  | boolean            | 解析 latest release 时允许选择 prerelease。                                                |
+| `fullProject` | boolean            | 跳过 include 探测，直接按完整项目安装。                                                    |
+| `includePath` | string 或 string[] | 要安装的归档内 include 目录。设置后，直接 zip URL 也可以按头文件安装。                     |
+| `stripPrefix` | string             | 解压后作为源码根目录的归档内相对目录。                                                     |
+| `patches`     | string 或 string[] | 解压后用 `git apply` 应用的项目内相对 patch 文件。                                         |
+| `components`  | string 或 string[] | 只安装所选源码根或 include 目录下的顶层条目。                                              |
+| `checksum`    | string             | 期望的归档 SHA-256 摘要，也支持 `sha256:<digest>`。                                        |
 
 同一个依赖不能同时设置 `tag` 和 `branch`。
+
+带安装修饰字段的示例：
+
+```json
+{
+  "dependencies": {
+    "vendor-sdk": {
+      "source": "https://example.com/downloads/vendor-sdk.zip",
+      "checksum": "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+      "stripPrefix": "sdk",
+      "includePath": ["include", "single_include"],
+      "components": ["vendor"],
+      "patches": ["patches/vendor-sdk.patch"]
+    }
+  }
+}
+```
 
 ## 直接安装
 
@@ -169,6 +195,9 @@ cppkg-cli get https://github.com/lvgl/lvgl --branch master
 cppkg-cli get https://github.com/owner/repo --prerelease
 cppkg-cli get https://github.com/lvgl/lvgl --full-project
 cppkg-cli get https://github.com/nlohmann/json --no-cache
+cppkg-cli get https://example.com/vendor.zip --include-path include
+cppkg-cli get https://example.com/vendor.zip --strip-prefix sdk --components vendor
+cppkg-cli get https://example.com/vendor.zip --checksum sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
 ```
 
 ## 搜索包
@@ -206,6 +235,7 @@ cppkg-cli search fmt --no-cache
 ```
 
 如果需要更高的 GitHub API 限流额度，可以在环境变量里设置 `GITHUB_TOKEN` 或 `GH_TOKEN`。
+也可以用 `cppkg-cli config set githubToken ...` 和 `cppkg-cli config set giteeToken ...` 保存项目级 GitHub/Gitee token，用于私有仓库和下载归档。
 
 ## 管理包
 
@@ -240,13 +270,13 @@ cppkg-cli remove json
 
 `install`、`update` 和 `remove` 支持的 selector：
 
-| Selector | 示例 |
-| --- | --- |
-| Manifest 依赖名或已安装包名 | `json` |
-| 仓库路径 | `/nlohmann/json` |
-| `owner/repo` | `nlohmann/json` |
-| 平台 host 简写 | `github.com/nlohmann/json`、`gitee.com/mirrors/jsoncpp` |
-| 已记录的来源 URL | `https://github.com/nlohmann/json` |
+| Selector                    | 示例                                                    |
+| --------------------------- | ------------------------------------------------------- |
+| Manifest 依赖名或已安装包名 | `json`                                                  |
+| 仓库路径                    | `/nlohmann/json`                                        |
+| `owner/repo`                | `nlohmann/json`                                         |
+| 平台 host 简写              | `github.com/nlohmann/json`、`gitee.com/mirrors/jsoncpp` |
+| 已记录的来源 URL            | `https://github.com/nlohmann/json`                      |
 
 `install` 的 selector 会匹配 `cppkg.json` 中的条目。`update` 和 `remove` 的 selector 会匹配 `deps.json` 中的已安装记录。
 
@@ -256,6 +286,8 @@ cppkg-cli remove json
 
 ```bash
 cppkg-cli config set proxy http://127.0.0.1:7890
+cppkg-cli config set githubToken ghp_xxx
+cppkg-cli config set giteeToken xxxxxx
 cppkg-cli config set packageRootDir third_party/cppkg
 cppkg-cli config set includeDirName include
 cppkg-cli config set projectsDirName projects
@@ -267,16 +299,18 @@ cppkg-cli config remove proxy
 
 支持的配置项：
 
-| 配置项 | 默认值 | 说明 |
-| --- | --- | --- |
-| `proxy` | 空 | HTTP 和 HTTPS 请求的默认代理。 |
-| `httpProxy` | 空 | 默认 HTTP 代理。 |
-| `httpsProxy` | 空 | 默认 HTTPS 代理。 |
-| `packageRootDir` | `cpp_libs` | 安装数据根目录。 |
-| `includeDirName` | `include` | `packageRootDir` 下的共享 include 目录名。 |
-| `projectsDirName` | `projects` | `packageRootDir` 下的完整项目目录名。 |
-| `cacheDirName` | `cache` | `packageRootDir` 下的下载归档缓存目录名。 |
-| `depsFileName` | `deps.json` | `packageRootDir` 下的已安装包元数据文件名。 |
+| 配置项            | 默认值      | 说明                                                              |
+| ----------------- | ----------- | ----------------------------------------------------------------- |
+| `proxy`           | 空          | HTTP 和 HTTPS 请求的默认代理。                                    |
+| `httpProxy`       | 空          | 默认 HTTP 代理。                                                  |
+| `httpsProxy`      | 空          | 默认 HTTPS 代理。                                                 |
+| `githubToken`     | 空          | 用于 GitHub 私有仓库、release asset、源码归档和搜索限流的 token。 |
+| `giteeToken`      | 空          | 用于 Gitee 私有仓库、release 和源码归档的 token。                 |
+| `packageRootDir`  | `cpp_libs`  | 安装数据根目录。                                                  |
+| `includeDirName`  | `include`   | `packageRootDir` 下的共享 include 目录名。                        |
+| `projectsDirName` | `projects`  | `packageRootDir` 下的完整项目目录名。                             |
+| `cacheDirName`    | `cache`     | `packageRootDir` 下的下载归档缓存目录名。                         |
+| `depsFileName`    | `deps.json` | `packageRootDir` 下的已安装包元数据文件名。                       |
 
 CLI 代理参数优先于配置文件。需要绕过缓存并重新下载时，可以给 `get`、`install` 或 `update` 加 `--no-cache`。
 
@@ -311,6 +345,11 @@ your-project/
 
 - GitHub 和 Gitee 仓库会先通过对应 API 检查已发布 release。
 - 下载到的归档会缓存在配置的缓存目录里；后续相同 archive URL 会复用缓存。
+- 如果设置了 `checksum`，解压前会校验下载归档的 SHA-256。
+- `stripPrefix` 会在应用 patch、探测 include、复制项目之前调整源码根目录。
+- `patches` 会在解压和 strip prefix 后用 `git apply` 应用。
+- `includePath` 会覆盖自动 include 探测，并能让直接 zip URL 按头文件安装。
+- `components` 会把复制范围限制为 include 目录或项目根下的指定顶层条目。
 - 如果 release 归档里有可用的 `include` 目录，头文件会合并到当前配置的 include 目录。
 - 如果 release 归档没有可用的 `include` 目录，会继续尝试仓库源码归档。
 - 如果仍然没有可用 include 目录，会回退为完整项目安装到当前配置的 projects 目录。
@@ -321,11 +360,3 @@ your-project/
 - `remove` 会删除已记录路径，并保留仍被其他包引用的共享路径。
 - `update` 会先清理已记录路径，再按记录来源重新安装。除非传入新的选项，否则会沿用上次记录的安装模式和 tag 或 branch。
 - 如果 release 没有单独 zip 资源，会退回到平台源码归档，比如 GitHub 的 `zipball`。
-
-## 开发
-
-```bash
-npm install
-npm run build
-npm test
-```

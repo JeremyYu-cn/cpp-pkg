@@ -7,6 +7,10 @@ function getErrorMessage(error: unknown) {
   return error instanceof Error ? error.message : String(error);
 }
 
+function collectOption(value: string, previous: string[] = []) {
+  return [...previous, value];
+}
+
 /**
  * Registers the package download command on the root CLI program.
  */
@@ -31,6 +35,23 @@ export function registerGetCommand(program: Command) {
       "Allow prerelease versions when selecting the latest release",
     )
     .option("--no-cache", "Bypass cached archives and refresh downloads")
+    .option(
+      "--include-path <path>",
+      "Archive-relative include directory to install; may be repeated",
+      collectOption,
+    )
+    .option("--strip-prefix <path>", "Archive-relative directory to install from")
+    .option(
+      "--patches <path>",
+      "Project-relative patch file to apply after extraction; may be repeated",
+      collectOption,
+    )
+    .option(
+      "--components <name>",
+      "Top-level include/project entry to install; may be repeated",
+      collectOption,
+    )
+    .option("--checksum <sha256>", "Expected archive SHA-256 checksum")
     .option("--http-proxy <url>", "HTTP request proxy, overrides config")
     .option("--https-proxy <url>", "HTTPS request proxy, overrides config")
     .action(async (repoURLs: string[], options: GetPkgOptions) => {

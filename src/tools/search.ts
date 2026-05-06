@@ -1,6 +1,6 @@
 import type { GetPkgOptions } from "../types/global";
 import axios from "axios";
-import { getRequestProxy } from "./request";
+import { getGitHubToken as resolveGitHubToken, getRequestProxy } from "./request";
 
 type GitHubSearchRepository = {
   archived?: boolean;
@@ -73,7 +73,7 @@ function normalizeSearchLanguage(language = "C++") {
 }
 
 function getGitHubToken(options: PackageSearchOptions) {
-  return options.githubToken || process.env.GITHUB_TOKEN || process.env.GH_TOKEN;
+  return resolveGitHubToken(options);
 }
 
 function buildGitHubSearchQuery(query: string, language: string) {

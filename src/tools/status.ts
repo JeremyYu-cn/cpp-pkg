@@ -46,8 +46,17 @@ function getManifestDependencyName(dependency: ManifestDependency) {
 }
 
 function getManifestSourceRequest(dependency: ManifestDependency): SourceRequest {
+  const modifiers = {
+    ...(dependency.includePath?.length ? { includePath: dependency.includePath } : {}),
+    ...(dependency.stripPrefix ? { stripPrefix: dependency.stripPrefix } : {}),
+    ...(dependency.patches?.length ? { patches: dependency.patches } : {}),
+    ...(dependency.components?.length ? { components: dependency.components } : {}),
+    ...(dependency.checksum ? { checksum: dependency.checksum } : {}),
+  };
+
   if (dependency.tag) {
     return {
+      ...modifiers,
       type: "tag",
       value: dependency.tag,
     };
@@ -55,12 +64,14 @@ function getManifestSourceRequest(dependency: ManifestDependency): SourceRequest
 
   if (dependency.branch) {
     return {
+      ...modifiers,
       type: "branch",
       value: dependency.branch,
     };
   }
 
   return {
+    ...modifiers,
     type: "latest-release",
     value: null,
     ...(dependency.prerelease ? { includePrerelease: true } : {}),
@@ -68,10 +79,28 @@ function getManifestSourceRequest(dependency: ManifestDependency): SourceRequest
 }
 
 function sourceRequestsEqual(left: SourceRequest | undefined, right: SourceRequest) {
+  const arraysEqual = (
+    leftValues: string[] | undefined,
+    rightValues: string[] | undefined,
+  ) => {
+    const normalizedLeft = leftValues ?? [];
+    const normalizedRight = rightValues ?? [];
+
+    return (
+      normalizedLeft.length === normalizedRight.length &&
+      normalizedLeft.every((value, index) => value === normalizedRight[index])
+    );
+  };
+
   return (
     left?.type === right.type &&
     (left.value ?? null) === (right.value ?? null) &&
-    Boolean(left.includePrerelease) === Boolean(right.includePrerelease)
+    Boolean(left.includePrerelease) === Boolean(right.includePrerelease) &&
+    arraysEqual(left.includePath, right.includePath) &&
+    (left.stripPrefix ?? null) === (right.stripPrefix ?? null) &&
+    arraysEqual(left.patches, right.patches) &&
+    arraysEqual(left.components, right.components) &&
+    (left.checksum ?? null) === (right.checksum ?? null)
   );
 }
 

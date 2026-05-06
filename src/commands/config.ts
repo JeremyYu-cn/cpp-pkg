@@ -13,6 +13,25 @@ function formatConfigValue(value: string) {
   return JSON.stringify(value);
 }
 
+function isSecretConfigKey(key: string) {
+  return key === "githubToken" || key === "giteeToken";
+}
+
+function formatConfigValueForDisplay(key: string, value: string) {
+  return isSecretConfigKey(key) && value ? "<redacted>" : value;
+}
+
+function redactConfigEntry(entry: ReturnType<typeof listConfigEntries>[number]) {
+  if (isSecretConfigKey(entry.key) && entry.value) {
+    return {
+      ...entry,
+      value: "<redacted>",
+    };
+  }
+
+  return entry;
+}
+
 export function registerConfigCommand(program: Command) {
   const configProgram = program
     .command("config")
@@ -36,7 +55,9 @@ export function registerConfigCommand(program: Command) {
       const configFilePath =
         path.relative(process.cwd(), getConfigFilePath()) || "cppkg.config.json";
 
-      logger.success(`Set ${result.key}=${result.value}`);
+      logger.success(
+        `Set ${result.key}=${formatConfigValueForDisplay(result.key, result.value)}`,
+      );
       logger.detail("Saved to", configFilePath);
     });
 
@@ -48,7 +69,7 @@ export function registerConfigCommand(program: Command) {
         path.relative(process.cwd(), getConfigFilePath()) || "cppkg.config.json";
 
       logger.info(`Resolved config for ${configFilePath}:`);
-      logger.table(listConfigEntries());
+      logger.table(listConfigEntries().map(redactConfigEntry));
     });
 
   configProgram

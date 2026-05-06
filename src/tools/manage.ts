@@ -269,6 +269,26 @@ function getUpdatedPackageOptions(
     updatedOptions.prerelease = true;
   }
 
+  if (options.includePath === undefined && requested?.includePath?.length) {
+    updatedOptions.includePath = requested.includePath;
+  }
+
+  if (options.stripPrefix === undefined && requested?.stripPrefix) {
+    updatedOptions.stripPrefix = requested.stripPrefix;
+  }
+
+  if (options.patches === undefined && requested?.patches?.length) {
+    updatedOptions.patches = requested.patches;
+  }
+
+  if (options.components === undefined && requested?.components?.length) {
+    updatedOptions.components = requested.components;
+  }
+
+  if (options.checksum === undefined && requested?.checksum) {
+    updatedOptions.checksum = requested.checksum;
+  }
+
   return updatedOptions;
 }
 

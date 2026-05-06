@@ -1,9 +1,9 @@
-const test = require("node:test");
-const assert = require("node:assert/strict");
-const { spawnSync } = require("node:child_process");
-const fs = require("node:fs/promises");
-const os = require("node:os");
-const path = require("node:path");
+import { test } from "vitest";
+import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
+import fs from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
 
 const {
   getConfigValue,
@@ -13,10 +13,10 @@ const {
   setConfigValue,
 } = require("../dist/public/config.js");
 
-const cliPath = path.resolve(__dirname, "../dist/main.js");
+const cliPath = path.resolve(process.cwd(), "dist/main.js");
 const originalCwd = process.cwd();
 
-async function withTempCwd(callback) {
+async function withTempCwd(callback: TempDirCallback) {
   const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "cppkg-config-test-"));
 
   process.chdir(tempDir);
@@ -29,7 +29,7 @@ async function withTempCwd(callback) {
   }
 }
 
-async function withTempDir(callback) {
+async function withTempDir(callback: TempDirCallback) {
   const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "cppkg-cli-test-"));
 
   try {
@@ -39,7 +39,7 @@ async function withTempDir(callback) {
   }
 }
 
-function runCli(args, cwd) {
+function runCli(args: string[], cwd: string) {
   return spawnSync(process.execPath, [cliPath, ...args], {
     cwd,
     encoding: "utf8",
@@ -63,18 +63,28 @@ test("config defaults, overrides, and remove are resolved from cppkg.config.json
       key: "cacheDirName",
       value: "archives",
     });
+    assert.deepEqual(setConfigValue("githubToken", " ghp_test "), {
+      key: "githubToken",
+      value: "ghp_test",
+    });
+    assert.deepEqual(setConfigValue("giteeToken", " gitee_test "), {
+      key: "giteeToken",
+      value: "gitee_test",
+    });
 
     assert.equal(resolveCliConfig().packageRootDir, "third_party/cppkg");
     assert.equal(resolveCliConfig().proxy, "http://127.0.0.1:7890");
     assert.equal(resolveCliConfig().cacheDirName, "archives");
+    assert.equal(resolveCliConfig().githubToken, "ghp_test");
+    assert.equal(resolveCliConfig().giteeToken, "gitee_test");
 
-    const entries = listConfigEntries();
+    const entries = listConfigEntries() as Array<{ key: string; source: string }>;
     assert.equal(
-      entries.find((entry) => entry.key === "packageRootDir").source,
+      entries.find((entry) => entry.key === "packageRootDir")?.source,
       "user",
     );
     assert.equal(
-      entries.find((entry) => entry.key === "includeDirName").source,
+      entries.find((entry) => entry.key === "includeDirName")?.source,
       "default",
     );
 
@@ -94,6 +104,16 @@ test("config defaults, overrides, and remove are resolved from cppkg.config.json
       hadValue: true,
       key: "cacheDirName",
       value: "cache",
+    });
+    assert.deepEqual(removeConfigValue("githubToken"), {
+      hadValue: true,
+      key: "githubToken",
+      value: "",
+    });
+    assert.deepEqual(removeConfigValue("giteeToken"), {
+      hadValue: true,
+      key: "giteeToken",
+      value: "",
     });
     await assert.rejects(
       () => fs.access("cppkg.config.json"),

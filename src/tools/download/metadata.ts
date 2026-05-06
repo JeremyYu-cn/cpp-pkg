@@ -13,8 +13,23 @@ function getSourceRequest(
   inputSource: ResolvedInputSource,
   options: GetPkgOptions,
 ): SourceRequest {
+  const modifiers = {
+    ...(options.includePath
+      ? {
+          includePath: Array.isArray(options.includePath)
+            ? options.includePath
+            : [options.includePath],
+        }
+      : {}),
+    ...(options.stripPrefix ? { stripPrefix: options.stripPrefix } : {}),
+    ...(options.patches?.length ? { patches: options.patches } : {}),
+    ...(options.components?.length ? { components: options.components } : {}),
+    ...(options.checksum ? { checksum: options.checksum } : {}),
+  };
+
   if (inputSource.kind === "archive-url") {
     return {
+      ...modifiers,
       type: "archive-url",
       value: inputSource.repositoryUrl,
     };
@@ -22,6 +37,7 @@ function getSourceRequest(
 
   if (options.tag) {
     return {
+      ...modifiers,
       type: "tag",
       value: options.tag,
     };
@@ -29,12 +45,14 @@ function getSourceRequest(
 
   if (options.branch) {
     return {
+      ...modifiers,
       type: "branch",
       value: options.branch,
     };
   }
 
   return {
+    ...modifiers,
     type: "latest-release",
     value: null,
     ...(options.prerelease ? { includePrerelease: true } : {}),

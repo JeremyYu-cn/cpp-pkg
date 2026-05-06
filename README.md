@@ -1,5 +1,9 @@
 # cppkg-cli
 
+<p align="center">
+  <img src="./assets/icon.png" alt="cppkg-cli icon" width="128" height="128">
+</p>
+
 `cppkg-cli` downloads C/C++ packages from GitHub, Gitee, or remote zip archives into a project-local package directory. It can install reusable headers into a shared include tree, or fall back to full-project extraction when a package is not header-only.
 
 [简体中文](./docs/README.zh-CN.md)
@@ -74,18 +78,18 @@ Successful installs, updates, and removals also refresh `./cppkg-lock.json`, whi
 
 ## Commands
 
-| Command | Purpose |
-| --- | --- |
-| `cppkg-cli init` | Create `./cppkg.json`. |
-| `cppkg-cli add <source>` | Add one dependency to `cppkg.json`, optionally installing it. |
-| `cppkg-cli search <query...>` | Search GitHub for C/C++ libraries sorted by stars. |
-| `cppkg-cli install [selector...]` | Install all manifest dependencies, or selected manifest entries. |
-| `cppkg-cli get <source-url...>` | Install one or more package sources directly. |
-| `cppkg-cli list` | List packages tracked in `deps.json`. |
-| `cppkg-cli status` | Check manifest, lockfile, metadata, and installed files. |
-| `cppkg-cli update [selector]` | Update one tracked package, or all packages when no selector is provided. |
-| `cppkg-cli remove <selector>` | Remove one tracked package. |
-| `cppkg-cli config <subcommand>` | Manage project-level defaults in `./cppkg.config.json`. |
+| Command                           | Purpose                                                                   |
+| --------------------------------- | ------------------------------------------------------------------------- |
+| `cppkg-cli init`                  | Create `./cppkg.json`.                                                    |
+| `cppkg-cli add <source>`          | Add one dependency to `cppkg.json`, optionally installing it.             |
+| `cppkg-cli search <query...>`     | Search GitHub for C/C++ libraries sorted by stars.                        |
+| `cppkg-cli install [selector...]` | Install all manifest dependencies, or selected manifest entries.          |
+| `cppkg-cli get <source-url...>`   | Install one or more package sources directly.                             |
+| `cppkg-cli list`                  | List packages tracked in `deps.json`.                                     |
+| `cppkg-cli status`                | Check manifest, lockfile, metadata, and installed files.                  |
+| `cppkg-cli update [selector]`     | Update one tracked package, or all packages when no selector is provided. |
+| `cppkg-cli remove <selector>`     | Remove one tracked package.                                               |
+| `cppkg-cli config <subcommand>`   | Manage project-level defaults in `./cppkg.config.json`.                   |
 
 Run any command with `--help` for its current options.
 
@@ -131,16 +135,38 @@ It also supports an array form:
 
 Manifest object fields:
 
-| Field | Type | Description |
-| --- | --- | --- |
-| `source` | string | GitHub repo URL, GitHub API repo URL, Gitee repo URL, Gitee API repo URL, or remote zip URL. |
-| `name` | string | Optional selector name for array entries. In map form, the map key is the dependency name. |
-| `tag` | string | Install a specific release tag, or repository tag when no matching release exists. |
-| `branch` | string | Install a specific repository branch. |
-| `prerelease` | boolean | Allow prerelease entries when resolving the latest release. |
-| `fullProject` | boolean | Skip include detection and install as a full project. |
+| Field         | Type               | Description                                                                                                              |
+| ------------- | ------------------ | ------------------------------------------------------------------------------------------------------------------------ |
+| `source`      | string             | GitHub repo URL, GitHub API repo URL, Gitee repo URL, Gitee API repo URL, or remote zip URL.                             |
+| `name`        | string             | Optional selector name for array entries. In map form, the map key is the dependency name.                               |
+| `tag`         | string             | Install a specific release tag, or repository tag when no matching release exists.                                       |
+| `branch`      | string             | Install a specific repository branch.                                                                                    |
+| `prerelease`  | boolean            | Allow prerelease entries when resolving the latest release.                                                              |
+| `fullProject` | boolean            | Skip include detection and install as a full project.                                                                    |
+| `includePath` | string or string[] | Archive-relative include directory or directories to install. Direct zip URLs are installed as headers when this is set. |
+| `stripPrefix` | string             | Archive-relative directory to treat as the source root after extraction.                                                 |
+| `patches`     | string or string[] | Project-relative patch files applied with `git apply` after extraction.                                                  |
+| `components`  | string or string[] | Top-level include or project entries to install from the selected root.                                                  |
+| `checksum`    | string             | Expected archive SHA-256 digest. `sha256:<digest>` is also accepted.                                                     |
 
 `tag` and `branch` cannot be used together for the same dependency.
+
+Example with install modifiers:
+
+```json
+{
+  "dependencies": {
+    "vendor-sdk": {
+      "source": "https://example.com/downloads/vendor-sdk.zip",
+      "checksum": "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+      "stripPrefix": "sdk",
+      "includePath": ["include", "single_include"],
+      "components": ["vendor"],
+      "patches": ["patches/vendor-sdk.patch"]
+    }
+  }
+}
+```
 
 ## Direct Install
 
@@ -169,6 +195,9 @@ cppkg-cli get https://github.com/lvgl/lvgl --branch master
 cppkg-cli get https://github.com/owner/repo --prerelease
 cppkg-cli get https://github.com/lvgl/lvgl --full-project
 cppkg-cli get https://github.com/nlohmann/json --no-cache
+cppkg-cli get https://example.com/vendor.zip --include-path include
+cppkg-cli get https://example.com/vendor.zip --strip-prefix sdk --components vendor
+cppkg-cli get https://example.com/vendor.zip --checksum sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
 ```
 
 ## Search Packages
@@ -206,6 +235,7 @@ cppkg-cli search fmt --no-cache
 ```
 
 Set `GITHUB_TOKEN` or `GH_TOKEN` in your environment when you need higher GitHub API rate limits.
+You can also persist project-level GitHub and Gitee tokens with `cppkg-cli config set githubToken ...` and `cppkg-cli config set giteeToken ...`.
 
 ## Manage Packages
 
@@ -240,13 +270,13 @@ cppkg-cli remove json
 
 Selectors accepted by `install`, `update`, and `remove`:
 
-| Selector | Example |
-| --- | --- |
-| Manifest dependency name or installed package name | `json` |
-| Repository path | `/nlohmann/json` |
-| Owner/repository | `nlohmann/json` |
-| Provider host shorthand | `github.com/nlohmann/json`, `gitee.com/mirrors/jsoncpp` |
-| Recorded source URL | `https://github.com/nlohmann/json` |
+| Selector                                           | Example                                                 |
+| -------------------------------------------------- | ------------------------------------------------------- |
+| Manifest dependency name or installed package name | `json`                                                  |
+| Repository path                                    | `/nlohmann/json`                                        |
+| Owner/repository                                   | `nlohmann/json`                                         |
+| Provider host shorthand                            | `github.com/nlohmann/json`, `gitee.com/mirrors/jsoncpp` |
+| Recorded source URL                                | `https://github.com/nlohmann/json`                      |
 
 `install` selectors are matched against entries in `cppkg.json`. `update` and `remove` selectors are matched against installed records in `deps.json`.
 
@@ -256,6 +286,8 @@ Project-level config is stored in `./cppkg.config.json`.
 
 ```bash
 cppkg-cli config set proxy http://127.0.0.1:7890
+cppkg-cli config set githubToken ghp_xxx
+cppkg-cli config set giteeToken xxxxxx
 cppkg-cli config set packageRootDir third_party/cppkg
 cppkg-cli config set includeDirName include
 cppkg-cli config set projectsDirName projects
@@ -267,16 +299,18 @@ cppkg-cli config remove proxy
 
 Supported config keys:
 
-| Key | Default | Description |
-| --- | --- | --- |
-| `proxy` | empty | Default proxy for HTTP and HTTPS requests. |
-| `httpProxy` | empty | Default HTTP proxy. |
-| `httpsProxy` | empty | Default HTTPS proxy. |
-| `packageRootDir` | `cpp_libs` | Root directory for installed package data. |
-| `includeDirName` | `include` | Shared include directory under `packageRootDir`. |
-| `projectsDirName` | `projects` | Full-project directory under `packageRootDir`. |
-| `cacheDirName` | `cache` | Downloaded archive cache directory under `packageRootDir`. |
-| `depsFileName` | `deps.json` | Installed package metadata file under `packageRootDir`. |
+| Key               | Default     | Description                                                                                     |
+| ----------------- | ----------- | ----------------------------------------------------------------------------------------------- |
+| `proxy`           | empty       | Default proxy for HTTP and HTTPS requests.                                                      |
+| `httpProxy`       | empty       | Default HTTP proxy.                                                                             |
+| `httpsProxy`      | empty       | Default HTTPS proxy.                                                                            |
+| `githubToken`     | empty       | GitHub token for private repositories, release assets, source archives, and search rate limits. |
+| `giteeToken`      | empty       | Gitee token for private repositories, releases, and source archives.                            |
+| `packageRootDir`  | `cpp_libs`  | Root directory for installed package data.                                                      |
+| `includeDirName`  | `include`   | Shared include directory under `packageRootDir`.                                                |
+| `projectsDirName` | `projects`  | Full-project directory under `packageRootDir`.                                                  |
+| `cacheDirName`    | `cache`     | Downloaded archive cache directory under `packageRootDir`.                                      |
+| `depsFileName`    | `deps.json` | Installed package metadata file under `packageRootDir`.                                         |
 
 CLI proxy flags override config values. Add `--no-cache` to `get`, `install`, or `update` when you need to bypass cached archives and refresh downloads.
 
@@ -311,6 +345,11 @@ Install behavior:
 
 - Repository sources are checked for published releases through the GitHub or Gitee API.
 - Downloaded archives are cached under the configured cache directory and reused by matching archive URL.
+- If `checksum` is set, the downloaded archive SHA-256 must match before extraction.
+- `stripPrefix` changes the extracted source root before patches, include detection, and project copying.
+- `patches` are applied with `git apply` after extraction and prefix stripping.
+- `includePath` overrides automatic include detection and can make direct zip URLs install as headers.
+- `components` limits copying to selected top-level entries under the include directory or project root.
 - If a release archive exposes a usable `include` directory, headers are merged into the configured include directory.
 - If the release archive does not expose a usable `include` directory, the CLI retries with the repository archive.
 - If no usable include directory is found, the package is installed as a full project under the configured projects directory.
@@ -321,11 +360,3 @@ Install behavior:
 - `remove` deletes tracked paths while preserving paths still referenced by other installed packages.
 - `update` cleans tracked paths first, then reinstalls from the recorded source URL. It reuses the recorded install mode and recorded tag or branch unless new options are provided.
 - If a release does not provide a separate zip asset, the CLI falls back to the provider source archive, such as a GitHub `zipball`.
-
-## Development
-
-```bash
-npm install
-npm run build
-npm test
-```

@@ -1,8 +1,8 @@
-const test = require("node:test");
-const assert = require("node:assert/strict");
-const fs = require("node:fs/promises");
-const os = require("node:os");
-const path = require("node:path");
+import { test } from "vitest";
+import assert from "node:assert/strict";
+import fs from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
 
 const {
   readPackageLock,
@@ -14,7 +14,7 @@ const { writeInstalledDependencies } = require("../dist/tools/deps.js");
 
 const originalCwd = process.cwd();
 
-async function withTempCwd(callback) {
+async function withTempCwd(callback: TempDirCallback) {
   const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "cppkg-lock-test-"));
 
   process.chdir(tempDir);
@@ -27,7 +27,11 @@ async function withTempCwd(callback) {
   }
 }
 
-function createDependency(name, repositoryPath, requested = { type: "latest-release", value: null }) {
+function createDependency(
+  name: string,
+  repositoryPath: string,
+  requested: TestRequestedSource = { type: "latest-release", value: null },
+) {
   return {
     name,
     version: "v1.0.0",

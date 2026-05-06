@@ -1,9 +1,9 @@
-const test = require("node:test");
-const assert = require("node:assert/strict");
-const { spawnSync } = require("node:child_process");
-const fs = require("node:fs/promises");
-const os = require("node:os");
-const path = require("node:path");
+import { test } from "vitest";
+import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
+import fs from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
 
 const {
   addPackageManifestDependency,
@@ -12,10 +12,10 @@ const {
   readPackageManifest,
 } = require("../dist/public/manifest.js");
 
-const cliPath = path.resolve(__dirname, "../dist/main.js");
+const cliPath = path.resolve(process.cwd(), "dist/main.js");
 const originalCwd = process.cwd();
 
-async function withTempCwd(callback) {
+async function withTempCwd(callback: TempDirCallback) {
   const tempDir = await fs.mkdtemp(
     path.join(os.tmpdir(), "cppkg-manifest-test-"),
   );
@@ -30,7 +30,7 @@ async function withTempCwd(callback) {
   }
 }
 
-async function withTempDir(callback) {
+async function withTempDir(callback: TempDirCallback) {
   const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "cppkg-cli-test-"));
 
   try {
@@ -40,7 +40,7 @@ async function withTempDir(callback) {
   }
 }
 
-function runCli(args, cwd) {
+function runCli(args: string[], cwd: string) {
   return spawnSync(process.execPath, [cliPath, ...args], {
     cwd,
     encoding: "utf8",
@@ -178,9 +178,14 @@ test("readPackageManifest rejects tag and branch on the same dependency", async 
 test("getManifestDependencyOptions combines manifest options with CLI proxies", () => {
   const options = getManifestDependencyOptions(
     {
+      checksum: "a".repeat(64),
+      components: ["core", "extras"],
       fullProject: true,
+      includePath: ["pkg/include"],
+      patches: ["patches/fix.patch"],
       prerelease: true,
       source: "https://github.com/owner/repo",
+      stripPrefix: "src",
       tag: "v1",
     },
     {
@@ -192,11 +197,55 @@ test("getManifestDependencyOptions combines manifest options with CLI proxies", 
 
   assert.deepEqual(options, {
     cache: false,
+    checksum: "a".repeat(64),
+    components: ["core", "extras"],
     fullProject: true,
     httpProxy: "http://127.0.0.1:7890",
     httpsProxy: "http://127.0.0.1:7890",
+    includePath: ["pkg/include"],
+    patches: ["patches/fix.patch"],
     prerelease: true,
+    stripPrefix: "src",
     tag: "v1",
+  });
+});
+
+test("readPackageManifest parses install modifier fields", async () => {
+  await withTempCwd(async () => {
+    await fs.writeFile(
+      "cppkg.json",
+      `${JSON.stringify(
+        {
+          dependencies: {
+            sdk: {
+              checksum: `sha256:${"b".repeat(64)}`,
+              components: "core",
+              includePath: ["./include/", "single_include"],
+              patches: "./patches/sdk.patch",
+              source: "https://github.com/owner/sdk",
+              stripPrefix: "./sdk-src/",
+            },
+          },
+        },
+        null,
+        2,
+      )}\n`,
+      "utf8",
+    );
+
+    const manifest = await readPackageManifest();
+
+    assert.deepEqual(manifest.dependencies, [
+      {
+        checksum: "b".repeat(64),
+        components: ["core"],
+        includePath: ["include", "single_include"],
+        name: "sdk",
+        patches: ["patches/sdk.patch"],
+        source: "https://github.com/owner/sdk",
+        stripPrefix: "sdk-src",
+      },
+    ]);
   });
 });
 

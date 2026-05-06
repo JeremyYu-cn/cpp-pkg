@@ -1,13 +1,16 @@
-const test = require("node:test");
-const assert = require("node:assert/strict");
-const { Readable } = require("node:stream");
-const fs = require("node:fs/promises");
-const os = require("node:os");
-const path = require("node:path");
+import { test } from "vitest";
+import assert from "node:assert/strict";
+import { Readable } from "node:stream";
+import crypto from "node:crypto";
+import fs from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
 
 const originalCwd = process.cwd();
 
-async function withTempCwd(callback) {
+type ZipEntries = Record<string, Buffer | string>;
+
+async function withTempCwd(callback: TempDirCallback) {
   const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "cppkg-download-test-"));
 
   process.chdir(tempDir);
@@ -36,24 +39,24 @@ const CRC_TABLE = (() => {
   return table;
 })();
 
-function crc32(buffer) {
+function crc32(buffer: Buffer) {
   let crc = 0xffffffff;
 
   for (const byte of buffer) {
-    crc = CRC_TABLE[(crc ^ byte) & 0xff] ^ (crc >>> 8);
+    crc = CRC_TABLE[(crc ^ byte) & 0xff]! ^ (crc >>> 8);
   }
 
   return (crc ^ 0xffffffff) >>> 0;
 }
 
-function writeDosDate(header, timeOffset, dateOffset) {
+function writeDosDate(header: Buffer, timeOffset: number, dateOffset: number) {
   header.writeUInt16LE(0, timeOffset);
   header.writeUInt16LE(((2026 - 1980) << 9) | (1 << 5) | 1, dateOffset);
 }
 
-function makeZip(entries) {
-  const localRecords = [];
-  const centralRecords = [];
+function makeZip(entries: ZipEntries) {
+  const localRecords: Buffer[] = [];
+  const centralRecords: Buffer[] = [];
   let offset = 0;
 
   for (const [rawName, rawContent] of Object.entries(entries)) {
@@ -119,10 +122,20 @@ function makeZip(entries) {
   ]);
 }
 
-function createMockAxios(routes) {
-  const calls = [];
-  const mockAxios = async (url, config = {}) => {
-    calls.push({ config, url });
+function sha256(buffer: Buffer) {
+  return crypto.createHash("sha256").update(buffer).digest("hex");
+}
+
+function createMockAxios(routes: TestAxiosRoutes): TestMockAxios {
+  const calls: TestAxiosCall[] = [];
+  const mockAxios = async (url: string, config: Partial<TestAxiosConfig> = {}) => {
+    const normalizedConfig: TestAxiosConfig = {
+      ...config,
+      headers: config.headers ?? {},
+      params: config.params ?? {},
+    };
+
+    calls.push({ config: normalizedConfig, url });
 
     const route = routes[url];
 
@@ -130,7 +143,7 @@ function createMockAxios(routes) {
       throw new Error(`Unexpected axios request: ${url}`);
     }
 
-    const value = typeof route === "function" ? route(url, config) : route;
+    const value = typeof route === "function" ? route(url, normalizedConfig) : route;
 
     if (Buffer.isBuffer(value)) {
       return {
@@ -162,7 +175,10 @@ function clearDistCache() {
   }
 }
 
-async function withMockedAxios(routes, callback) {
+async function withMockedAxios(
+  routes: TestAxiosRoutes,
+  callback: (mockAxios: TestMockAxios) => Promise<void> | void,
+) {
   const axiosPath = require.resolve("axios");
   const previousAxios = require.cache[axiosPath];
   const mockAxios = createMockAxios(routes);
@@ -175,7 +191,7 @@ async function withMockedAxios(routes, callback) {
     id: axiosPath,
     loaded: true,
     paths: module.paths,
-  };
+  } as unknown as NodeJS.Module;
 
   try {
     await callback(mockAxios);
@@ -190,7 +206,7 @@ async function withMockedAxios(routes, callback) {
   }
 }
 
-function githubRelease(overrides = {}) {
+function githubRelease(overrides: Record<string, unknown> = {}) {
   return {
     assets: [],
     draft: false,
@@ -367,7 +383,7 @@ test("getVCPkg reuses cached direct archive downloads", async () => {
 
         const cacheFiles = await fs.readdir("cpp_libs/cache");
         assert.equal(cacheFiles.length, 1);
-        assert.match(cacheFiles[0], /^[0-9a-f]{16}-cached-sdk\.zip$/);
+        assert.match(cacheFiles[0]!, /^[0-9a-f]{16}-cached-sdk\.zip$/);
       },
     );
   });
@@ -397,7 +413,7 @@ test("getVCPkg honors custom archive cache directory config", async () => {
 
         const cacheFiles = await fs.readdir("cpp_libs/archives");
         assert.equal(cacheFiles.length, 1);
-        assert.match(cacheFiles[0], /^[0-9a-f]{16}-custom-cache-sdk\.zip$/);
+        assert.match(cacheFiles[0]!, /^[0-9a-f]{16}-custom-cache-sdk\.zip$/);
       },
     );
   });
@@ -427,6 +443,168 @@ test("getVCPkg bypasses archive cache when cache is disabled", async () => {
         await assert.rejects(
           () => fs.access("cpp_libs/cache"),
           /ENOENT/,
+        );
+      },
+    );
+  });
+});
+
+test("getVCPkg installs direct archives from explicit include paths with strip prefix components and checksum", async () => {
+  await withTempCwd(async () => {
+    const archiveURL = "https://example.com/downloads/component-sdk.zip";
+    const archive = makeZip({
+      "component-sdk/source/include/bar/bar.h": "#pragma once\n",
+      "component-sdk/source/include/foo/foo.h": "#pragma once\n",
+      "component-sdk/source/src/foo.cpp": "int foo() { return 1; }\n",
+    });
+
+    await withMockedAxios(
+      {
+        [archiveURL]: archive,
+      },
+      async () => {
+        const { getVCPkg } = require("../dist/tools/download/main.js");
+        const { readInstalledDependencies } = require("../dist/tools/deps.js");
+
+        await getVCPkg(archiveURL, {
+          checksum: sha256(archive),
+          components: ["foo"],
+          includePath: "include",
+          stripPrefix: "source",
+        });
+
+        await fs.access("cpp_libs/include/foo/foo.h");
+        await assert.rejects(
+          () => fs.access("cpp_libs/include/bar/bar.h"),
+          /ENOENT/,
+        );
+
+        const installed = await readInstalledDependencies();
+        assert.equal(installed.dependencies[0].install.mode, "include");
+        assert.deepEqual(installed.dependencies[0].install.headers, ["foo"]);
+        assert.deepEqual(installed.dependencies[0].source.requested, {
+          checksum: sha256(archive),
+          components: ["foo"],
+          includePath: ["include"],
+          stripPrefix: "source",
+          type: "archive-url",
+          value: archiveURL,
+        });
+      },
+    );
+  });
+});
+
+test("getVCPkg applies manifest patch files before installing headers", async () => {
+  await withTempCwd(async () => {
+    const archiveURL = "https://example.com/downloads/patched-sdk.zip";
+    const archive = makeZip({
+      "patched-sdk/include/patched/version.h": "#define VERSION 1\n",
+    });
+
+    await fs.writeFile(
+      "fix-version.patch",
+      [
+        "diff --git a/include/patched/version.h b/include/patched/version.h",
+        "--- a/include/patched/version.h",
+        "+++ b/include/patched/version.h",
+        "@@ -1 +1 @@",
+        "-#define VERSION 1",
+        "+#define VERSION 2",
+        "",
+      ].join("\n"),
+      "utf8",
+    );
+
+    await withMockedAxios(
+      {
+        [archiveURL]: archive,
+      },
+      async () => {
+        const { getVCPkg } = require("../dist/tools/download/main.js");
+
+        await getVCPkg(archiveURL, {
+          includePath: "include",
+          patches: ["fix-version.patch"],
+        });
+
+        assert.equal(
+          await fs.readFile("cpp_libs/include/patched/version.h", "utf8"),
+          "#define VERSION 2\n",
+        );
+      },
+    );
+  });
+});
+
+test("getVCPkg sends configured GitHub and Gitee tokens to provider requests", async () => {
+  await withTempCwd(async () => {
+    const githubArchiveURL = "https://api.github.com/repos/owner/private/zipball/v1.0.0";
+    const giteeArchiveURL = "https://gitee.com/owner/private/repository/archive/master.zip";
+    const archive = makeZip({
+      "private/include/private/private.h": "#pragma once\n",
+    });
+
+    await fs.writeFile(
+      "cppkg.config.json",
+      `${JSON.stringify(
+        {
+          githubToken: "ghp_private",
+          giteeToken: "gitee_private",
+        },
+        null,
+        2,
+      )}\n`,
+      "utf8",
+    );
+
+    await withMockedAxios(
+      {
+        "https://api.github.com/repos/owner/private": {
+          default_branch: "main",
+          full_name: "owner/private",
+          html_url: "https://github.com/owner/private",
+        },
+        "https://api.github.com/repos/owner/private/releases": [
+          githubRelease({
+            assets: [],
+            zipball_url: githubArchiveURL,
+          }),
+        ],
+        [githubArchiveURL]: archive,
+        "https://gitee.com/api/v5/repos/owner/private": {
+          default_branch: "master",
+          full_name: "owner/private",
+          html_url: "https://gitee.com/owner/private",
+        },
+        "https://gitee.com/api/v5/repos/owner/private/releases": [],
+        [giteeArchiveURL]: archive,
+      },
+      async (mockAxios) => {
+        const { getVCPkg } = require("../dist/tools/download/main.js");
+
+        await getVCPkg("https://github.com/owner/private");
+        await getVCPkg("https://gitee.com/owner/private");
+
+        const githubCalls = mockAxios.calls.filter((call) =>
+          call.url.includes("github.com"),
+        );
+        const giteeCalls = mockAxios.calls.filter((call) =>
+          call.url.includes("gitee.com"),
+        );
+
+        assert.ok(githubCalls.length > 0);
+        assert.ok(giteeCalls.length > 0);
+        assert.ok(
+          githubCalls.every((call) =>
+            call.config.headers.authorization === "Bearer ghp_private",
+          ),
+        );
+        assert.ok(
+          giteeCalls.every((call) =>
+            call.config.headers.authorization === "Bearer gitee_private" &&
+            call.config.params.access_token === "gitee_private",
+          ),
         );
       },
     );
@@ -503,7 +681,7 @@ test("update reuses a recorded branch and accepts Gitee selector variants", asyn
         const result = await updateInstalledPackages("gitee.com/mirrors/branchlib");
 
         assert.deepEqual(
-          result.updatedDependencies.map((dependency) => dependency.name),
+          result.updatedDependencies.map((dependency: TestDependency) => dependency.name),
           ["branchlib"],
         );
         await fs.access("cpp_libs/projects/mirrors_branchlib/src/new.cpp");

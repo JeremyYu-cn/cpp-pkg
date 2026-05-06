@@ -10,7 +10,7 @@ import { pipeline } from "node:stream/promises";
 import unzipper from "unzipper";
 import { getArchiveCachePath } from "../../public/packagePath";
 import { logger } from "../logger";
-import { getRequestProxy } from "../request";
+import { getRequestConfig } from "../request";
 import { collectIncludeDirs } from "./include";
 
 type ArchiveFileResult = {
@@ -70,9 +70,48 @@ async function getFileSha256(filePath: string) {
 /**
  * Downloads an archive with curl as a compatibility fallback for hosts that serve HTML to axios.
  */
-async function downloadArchiveWithCurl(url: string, archivePath: string) {
+function appendParamsToURL(url: string, params: unknown) {
+  if (!params || typeof params !== "object") {
+    return url;
+  }
+
+  const parsed = new URL(url);
+
+  for (const [key, value] of Object.entries(params as Record<string, unknown>)) {
+    if (typeof value === "string") {
+      parsed.searchParams.set(key, value);
+    }
+  }
+
+  return parsed.toString();
+}
+
+async function downloadArchiveWithCurl(
+  archive: ArchiveDescriptor,
+  archivePath: string,
+  options: GetPkgOptions = {},
+) {
+  const requestConfig = getRequestConfig(archive.url, options, {
+    "user-agent": "cppkg-cli",
+    ...(archive.headers ?? {}),
+  });
+  const args = [
+    "-L",
+    "--fail",
+    "--output",
+    archivePath,
+  ];
+
+  for (const [key, value] of Object.entries(
+    requestConfig.headers as Record<string, string>,
+  )) {
+    args.push("-H", `${key}: ${value}`);
+  }
+
+  args.push(appendParamsToURL(archive.url, requestConfig.params));
+
   await new Promise<void>((resolve, reject) => {
-    const child = spawn("curl", ["-L", "--fail", "--output", archivePath, url], {
+    const child = spawn("curl", args, {
       stdio: ["ignore", "ignore", "pipe"],
     });
 
@@ -105,17 +144,17 @@ async function downloadArchiveWithCurl(url: string, archivePath: string) {
  * Streams an archive to a temporary file while printing coarse progress.
  */
 async function downloadArchive(
-  url: string,
+  archive: ArchiveDescriptor,
   archivePath: string,
   options: GetPkgOptions = {},
 ) {
-  const res = await axios<NodeJS.ReadableStream>(url, {
+  const res = await axios<NodeJS.ReadableStream>(archive.url, {
     method: "GET",
-    headers: {
-      "User-Agent": "cppkg-cli",
-    },
     responseType: "stream",
-    ...getRequestProxy(options.httpProxy, options.httpsProxy),
+    ...getRequestConfig(archive.url, options, {
+      "user-agent": "cppkg-cli",
+      ...(archive.headers ?? {}),
+    }),
   });
 
   const contentType = String(res.headers["content-type"] ?? "").toLowerCase();
@@ -123,7 +162,7 @@ async function downloadArchive(
   if (contentType.includes("text/html")) {
     (res.data as NodeJS.ReadableStream & { destroy?: () => void }).destroy?.();
     logger.warn("Remote host returned HTML for the archive request, retrying with curl");
-    await downloadArchiveWithCurl(url, archivePath);
+    await downloadArchiveWithCurl(archive, archivePath, options);
     return;
   }
 
@@ -156,7 +195,7 @@ async function prepareArchiveFile(
   forceRefresh = false,
 ): Promise<ArchiveFileResult> {
   if (!isArchiveCacheEnabled(options)) {
-    await downloadArchive(archive.url, archivePath, options);
+    await downloadArchive(archive, archivePath, options);
     return { fromCache: false };
   }
 
@@ -170,7 +209,7 @@ async function prepareArchiveFile(
     return { cachePath, fromCache: true };
   }
 
-  await downloadArchive(archive.url, archivePath, options);
+  await downloadArchive(archive, archivePath, options);
   await fsp.mkdir(path.dirname(cachePath), { recursive: true });
   await fsp.copyFile(archivePath, cachePath);
   logger.detail("Cached archive", path.relative(process.cwd(), cachePath));
@@ -201,6 +240,103 @@ async function getPrimaryExtractedRoot(extractPath: string) {
   return extractPath;
 }
 
+function resolveSubpath(rootPath: string, relativePath: string) {
+  const resolvedRoot = path.resolve(rootPath);
+  const resolvedPath = path.resolve(
+    resolvedRoot,
+    ...relativePath.split("/").filter(Boolean),
+  );
+  const relative = path.relative(resolvedRoot, resolvedPath);
+
+  if (relative.startsWith("..") || path.isAbsolute(relative)) {
+    throw new Error(`Path ${relativePath} escapes the archive root.`);
+  }
+
+  return resolvedPath;
+}
+
+async function applyStripPrefix(sourceRootPath: string, stripPrefix?: string) {
+  if (!stripPrefix) {
+    return sourceRootPath;
+  }
+
+  const strippedRootPath = resolveSubpath(sourceRootPath, stripPrefix);
+  const stat = await fsp.stat(strippedRootPath);
+
+  if (!stat.isDirectory()) {
+    throw new Error(`stripPrefix path is not a directory: ${stripPrefix}`);
+  }
+
+  return strippedRootPath;
+}
+
+async function applyPatchFile(sourceRootPath: string, patchPath: string) {
+  const patchFilePath = path.resolve(process.cwd(), patchPath);
+
+  await fsp.access(patchFilePath);
+
+  await new Promise<void>((resolve, reject) => {
+    const child = spawn(
+      "git",
+      ["-C", sourceRootPath, "apply", "--whitespace=nowarn", patchFilePath],
+      {
+        stdio: ["ignore", "ignore", "pipe"],
+      },
+    );
+    let stderr = "";
+
+    child.stderr.on("data", (chunk: Buffer) => {
+      stderr += chunk.toString("utf8");
+    });
+
+    child.on("error", (error) => {
+      reject(new Error(`Failed to start git apply: ${error.message}`));
+    });
+
+    child.on("close", (code) => {
+      if (code === 0) {
+        resolve();
+        return;
+      }
+
+      reject(
+        new Error(
+          `Failed to apply patch ${patchPath}${stderr.trim() ? `: ${stderr.trim()}` : ""}`,
+        ),
+      );
+    });
+  });
+}
+
+async function applyPatches(sourceRootPath: string, patches: string[] = []) {
+  for (const patchPath of patches) {
+    logger.info(`Applying patch ${patchPath}`);
+    await applyPatchFile(sourceRootPath, patchPath);
+  }
+}
+
+function getExpectedChecksum(options: GetPkgOptions) {
+  return options.checksum?.trim().toLowerCase().replace(/^sha256[:=-]/i, "");
+}
+
+function verifyChecksum(
+  archive: ArchiveDescriptor,
+  actualSha256: string,
+  options: GetPkgOptions,
+) {
+  const expectedSha256 = getExpectedChecksum(options);
+
+  if (!expectedSha256) {
+    return;
+  }
+
+  if (actualSha256 !== expectedSha256) {
+    throw new Error(
+      `Checksum mismatch for ${archive.label}: expected ${expectedSha256}, got ${actualSha256}`,
+    );
+  }
+}
+
 /**
  * Downloads and extracts one candidate archive, then scans it for usable include directories.
  */
@@ -227,6 +363,26 @@ export async function prepareArchive(
   );
 
   let archiveFile = await prepareArchiveFile(archive, archivePath, options);
+  let archiveSha256 = await getFileSha256(archivePath);
+
+  try {
+    verifyChecksum(archive, archiveSha256, options);
+  } catch (error) {
+    if (!archiveFile.fromCache || !archiveFile.cachePath) {
+      throw error;
+    }
+
+    logger.warn(
+      `Cached archive ${path.relative(process.cwd(), archiveFile.cachePath)} failed checksum verification, refreshing it`,
+    );
+    await fsp.rm(archiveFile.cachePath, { force: true });
+    await fsp.rm(archivePath, { force: true });
+    await fsp.rm(extractPath, { force: true, recursive: true });
+    archiveFile = await prepareArchiveFile(archive, archivePath, options, true);
+    archiveSha256 = await getFileSha256(archivePath);
+    verifyChecksum(archive, archiveSha256, options);
+  }
+
   logger.progress("Archive ready, extracting archive");
 
   try {
@@ -246,13 +402,23 @@ export async function prepareArchive(
     await extractZipArchive(archivePath, extractPath);
   }
 
-  const sourceRootPath = await getPrimaryExtractedRoot(extractPath);
+  let sourceRootPath = await getPrimaryExtractedRoot(extractPath);
+
+  sourceRootPath = await applyStripPrefix(sourceRootPath, options.stripPrefix);
+  await applyPatches(sourceRootPath, options.patches);
 
   return {
     archive,
-    includeDirs: await collectIncludeDirs(sourceRootPath),
+    includeDirs: await collectIncludeDirs(
+      sourceRootPath,
+      Array.isArray(options.includePath)
+        ? options.includePath
+        : options.includePath
+          ? [options.includePath]
+          : undefined,
+    ),
     integrity: {
-      sha256: await getFileSha256(archivePath),
+      sha256: archiveSha256,
     },
     sourceRootPath,
   };

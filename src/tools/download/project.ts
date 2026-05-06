@@ -13,14 +13,20 @@ import { buildInstalledDependency } from "./metadata";
 async function installWholeProject(
   sourceRootPath: string,
   targetProjectPath: string,
+  components: string[] = [],
 ) {
   await fsp.rm(targetProjectPath, { force: true, recursive: true });
   await fsp.mkdir(targetProjectPath, { recursive: true });
 
   const entries = await fsp.readdir(sourceRootPath, { withFileTypes: true });
   const installedEntries = new Set<string>();
+  const selectedComponents = new Set(components);
 
   for (const entry of entries) {
+    if (selectedComponents.size && !selectedComponents.has(entry.name)) {
+      continue;
+    }
+
     const sourcePath = path.join(sourceRootPath, entry.name);
     const targetPath = path.join(targetProjectPath, entry.name);
     const relativePath = normalizeTrackedPath(entry.name);
@@ -31,6 +37,12 @@ async function installWholeProject(
     });
 
     installedEntries.add(relativePath);
+  }
+
+  if (selectedComponents.size && !installedEntries.size) {
+    throw new Error(
+      `No project components matched: ${components.join(", ")}`,
+    );
   }
 
   return {
@@ -58,6 +70,7 @@ export async function installProjectPackage(
   const installed = await installWholeProject(
     preparedArchive.sourceRootPath,
     installRootPath,
+    options.components,
   );
   const installedDependency = buildInstalledDependency(
     inputSource,

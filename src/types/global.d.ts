@@ -1,17 +1,29 @@
 export type GetPkgOptions = {
   httpProxy?: string;
   httpsProxy?: string;
+  githubToken?: string;
+  giteeToken?: string;
   cache?: boolean;
   fullProject?: boolean;
   tag?: string;
   branch?: string;
   prerelease?: boolean;
+  includePath?: string | string[];
+  stripPrefix?: string;
+  patches?: string[];
+  components?: string[];
+  checksum?: string;
 };
 
 export type SourceRequest = {
   type: "archive-url" | "branch" | "latest-release" | "tag";
   value: string | null;
   includePrerelease?: boolean;
+  includePath?: string[];
+  stripPrefix?: string;
+  patches?: string[];
+  components?: string[];
+  checksum?: string;
 };
 
 export type InstalledDependency = {

@@ -2,7 +2,7 @@ import type { GitHubRelease } from "../../types/github";
 import type { GetPkgOptions } from "../../types/global";
 import axios from "axios";
 import path from "node:path";
-import { getRequestProxy } from "../request";
+import { getRequestConfig, hasProviderToken } from "../request";
 import type {
   ArchiveDescriptor,
   GiteeRelease,
@@ -253,10 +253,24 @@ function pickReleaseByTag<TRelease extends ProviderRelease>(
 /**
  * Selects the preferred downloadable archive for a GitHub release.
  */
-export function pickGitHubReleaseArchive(release: GitHubRelease) {
+export function pickGitHubReleaseArchive(
+  release: GitHubRelease,
+  options: GetPkgOptions = {},
+) {
   const zipAsset = release.assets.find(isZipAsset);
 
   if (zipAsset) {
+    if (hasProviderToken("github", options)) {
+      return {
+        headers: {
+          accept: "application/octet-stream",
+        },
+        kind: "github-release" as const,
+        label: zipAsset.name,
+        url: zipAsset.url,
+      };
+    }
+
     return {
       kind: "github-release" as const,
       label: zipAsset.name,
@@ -321,15 +335,15 @@ export async function fetchGitHubRepository(
   repoPath: string,
   options: GetPkgOptions = {},
 ) {
+  const url = `https://api.github.com/repos${repoPath}`;
   const res = await axios<GitHubRepository>(
-    `https://api.github.com/repos${repoPath}`,
+    url,
     {
       method: "GET",
-      headers: {
+      ...getRequestConfig(url, options, {
         "content-type": "application/json",
         "user-agent": "cppkg-cli",
-      },
-      ...getRequestProxy(options.httpProxy, options.httpsProxy),
+      }),
     },
   );
 
@@ -343,15 +357,15 @@ export async function fetchGiteeRepository(
   repoPath: string,
   options: GetPkgOptions = {},
 ) {
+  const url = `https://gitee.com/api/v5/repos${repoPath}`;
   const res = await axios<GiteeRepository>(
-    `https://gitee.com/api/v5/repos${repoPath}`,
+    url,
     {
       method: "GET",
-      headers: {
+      ...getRequestConfig(url, options, {
         "content-type": "application/json",
         "user-agent": "cppkg-cli",
-      },
-      ...getRequestProxy(options.httpProxy, options.httpsProxy),
+      }),
     },
   );
 
@@ -365,15 +379,15 @@ export async function fetchLatestGitHubRelease(
   repoPath: string,
   options: GetPkgOptions = {},
 ) {
+  const url = `https://api.github.com/repos${repoPath}/releases`;
   const res = await axios<GitHubRelease[]>(
-    `https://api.github.com/repos${repoPath}/releases`,
+    url,
     {
       method: "GET",
-      headers: {
+      ...getRequestConfig(url, options, {
         "content-type": "application/json",
         "user-agent": "cppkg-cli",
-      },
-      ...getRequestProxy(options.httpProxy, options.httpsProxy),
+      }),
     },
   );
 
@@ -391,15 +405,15 @@ export async function fetchLatestGiteeRelease(
   repoPath: string,
   options: GetPkgOptions = {},
 ) {
+  const url = `https://gitee.com/api/v5/repos${repoPath}/releases`;
   const res = await axios<GiteeRelease[]>(
-    `https://gitee.com/api/v5/repos${repoPath}/releases`,
+    url,
     {
       method: "GET",
-      headers: {
+      ...getRequestConfig(url, options, {
         "content-type": "application/json",
         "user-agent": "cppkg-cli",
-      },
-      ...getRequestProxy(options.httpProxy, options.httpsProxy),
+      }),
     },
   );
 

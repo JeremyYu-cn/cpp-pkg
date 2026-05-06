@@ -1,13 +1,12 @@
-const test = require("node:test");
-const assert = require("node:assert/strict");
-const { spawnSync } = require("node:child_process");
-const fs = require("node:fs/promises");
-const os = require("node:os");
-const path = require("node:path");
+import { test } from "vitest";
+import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
+import fs from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+const cliPath = path.resolve(process.cwd(), "dist/main.js");
 
-const cliPath = path.resolve(__dirname, "../dist/main.js");
-
-async function withTempDir(callback) {
+async function withTempDir(callback: TempDirCallback) {
   const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "cppkg-list-test-"));
 
   try {
@@ -17,14 +16,18 @@ async function withTempDir(callback) {
   }
 }
 
-function runCli(args, cwd) {
+function runCli(args: string[], cwd: string) {
   return spawnSync(process.execPath, [cliPath, ...args], {
     cwd,
     encoding: "utf8",
   });
 }
 
-function createDependency(name, repositoryPath, requested) {
+function createDependency(
+  name: string,
+  repositoryPath: string,
+  requested: TestRequestedSource,
+) {
   return {
     name,
     version: "v1.0.0",

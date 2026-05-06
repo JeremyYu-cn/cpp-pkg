@@ -1,8 +1,8 @@
-const test = require("node:test");
-const assert = require("node:assert/strict");
-const fs = require("node:fs/promises");
-const os = require("node:os");
-const path = require("node:path");
+import { test } from "vitest";
+import assert from "node:assert/strict";
+import fs from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
 
 const {
   readInstalledDependencies,
@@ -15,7 +15,14 @@ const {
 
 const originalCwd = process.cwd();
 
-async function withTempCwd(callback) {
+type CreateDependencyOverrides = {
+  install?: TestInstallMetadata;
+  repositoryUrl?: string;
+  requested?: TestRequestedSource;
+  sourceType?: string;
+};
+
+async function withTempCwd(callback: TempDirCallback) {
   const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "cppkg-manage-test-"));
 
   process.chdir(tempDir);
@@ -28,7 +35,11 @@ async function withTempCwd(callback) {
   }
 }
 
-function createDependency(name, repositoryPath, overrides = {}) {
+function createDependency(
+  name: string,
+  repositoryPath: string,
+  overrides: CreateDependencyOverrides = {},
+) {
   const repositoryUrl = overrides.repositoryUrl || `https://github.com${repositoryPath}`;
   const install = overrides.install || {
     mode: "include",
@@ -64,7 +75,7 @@ function createDependency(name, repositoryPath, overrides = {}) {
   };
 }
 
-async function assertMissing(targetPath) {
+async function assertMissing(targetPath: string) {
   await assert.rejects(
     () => fs.access(targetPath),
     /ENOENT/,
@@ -109,7 +120,10 @@ test("remove deletes owned include paths and preserves shared paths", async () =
     await fs.access("cpp_libs/include/shared/common.h");
 
     const installed = await readInstalledDependencies();
-    assert.deepEqual(installed.dependencies.map((dependency) => dependency.name), ["fmt"]);
+    assert.deepEqual(
+      installed.dependencies.map((dependency: TestDependency) => dependency.name),
+      ["fmt"],
+    );
   });
 });
 
@@ -215,7 +229,7 @@ test("host-specific selectors choose the matching provider when repository paths
     await assertMissing("cpp_libs/include/gitee_repo");
 
     const installed = await readInstalledDependencies();
-    assert.deepEqual(installed.dependencies.map((dependency) => dependency.name), [
+    assert.deepEqual(installed.dependencies.map((dependency: TestDependency) => dependency.name), [
       "aaa-github-repo",
     ]);
   });

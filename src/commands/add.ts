@@ -13,6 +13,10 @@ type AddOptions = AddManifestDependencyOptions &
     install?: boolean;
   };
 
+function collectOption(value: string, previous: string[] = []) {
+  return [...previous, value];
+}
+
 /**
  * Registers the command that adds one dependency to cppkg.json.
  */
@@ -35,6 +39,23 @@ export function registerAddCommand(program: Command) {
       "--full-project",
       "Install the package as a full project and skip include-directory detection",
     )
+    .option(
+      "--include-path <path>",
+      "Archive-relative include directory to write in cppkg.json; may be repeated",
+      collectOption,
+    )
+    .option("--strip-prefix <path>", "Archive-relative directory to install from")
+    .option(
+      "--patches <path>",
+      "Project-relative patch file to apply after extraction; may be repeated",
+      collectOption,
+    )
+    .option(
+      "--components <name>",
+      "Top-level include/project entry to install; may be repeated",
+      collectOption,
+    )
+    .option("--checksum <sha256>", "Expected archive SHA-256 checksum")
     .option("--install", "Install the dependency after writing cppkg.json")
     .option("-f, --force", "Replace an existing manifest dependency")
     .option("--no-cache", "Bypass cached archives when used with --install")

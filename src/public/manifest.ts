@@ -8,17 +8,37 @@ export const MANIFEST_FILE_NAME = "cppkg.json";
 
 const DEPENDENCY_KEYS = new Set([
   "name", "source", "tag", "branch", "prerelease", "fullProject",
+  "includePath", "stripPrefix", "patches", "components", "checksum",
 ]);
 
 export type ManifestDependency = {
   name?: string; source: string; tag?: string; branch?: string;
   prerelease?: boolean; fullProject?: boolean;
+  includePath?: string[]; stripPrefix?: string; patches?: string[];
+  components?: string[]; checksum?: string;
 };
 export type PackageManifest = { dependencies: ManifestDependency[] };
 
+type InstallModifierFields = {
+  checksum?: string | undefined;
+  components?: string[] | undefined;
+  includePath?: string[] | undefined;
+  patches?: string[] | undefined;
+  stripPrefix?: string | undefined;
+};
+
 export type AddManifestDependencyOptions = Pick<
   ManifestDependency,
-  "branch" | "fullProject" | "name" | "prerelease" | "tag"
+  | "branch"
+  | "checksum"
+  | "components"
+  | "fullProject"
+  | "includePath"
+  | "name"
+  | "patches"
+  | "prerelease"
+  | "stripPrefix"
+  | "tag"
 > & {
   force?: boolean;
 };
@@ -69,6 +89,129 @@ function readOptionalBoolean(record: Record<string, unknown>, key: string, label
   }
 
   return value;
+}
+
+function readOptionalStringArray(
+  record: Record<string, unknown>,
+  key: string,
+  label: string,
+) {
+  const value = record[key];
+
+  if (value === undefined) return undefined;
+
+  if (typeof value === "string") {
+    return [readString(value, `${label}.${key}`)];
+  }
+
+  if (!Array.isArray(value)) {
+    throw new Error(`${label}.${key} must be a string or array of strings.`);
+  }
+
+  return value.map((entry, index) =>
+    readString(entry, `${label}.${key}[${index}]`),
+  );
+}
+
+function normalizeRelativeArchivePath(value: string, label: string) {
+  const normalized = value.trim().replace(/\\/g, "/").replace(/^\.\/+/, "")
+    .replace(/\/+$/, "");
+
+  if (!normalized) throw new Error(`${label} cannot be empty.`);
+
+  if (path.posix.isAbsolute(normalized)) {
+    throw new Error(`${label} must be a relative archive path.`);
+  }
+
+  const segments = normalized.split("/").filter(Boolean);
+
+  if (!segments.length || segments.some((segment) => segment === "." || segment === "..")) {
+    throw new Error(`${label} must stay inside the archive root.`);
+  }
+
+  return segments.join("/");
+}
+
+function normalizeProjectRelativePath(value: string, label: string) {
+  const normalized = value.trim().replace(/\\/g, "/").replace(/^\.\/+/, "")
+    .replace(/\/+$/, "");
+
+  if (!normalized) throw new Error(`${label} cannot be empty.`);
+
+  if (path.isAbsolute(normalized)) {
+    throw new Error(`${label} must be a relative project path.`);
+  }
+
+  const segments = normalized.split("/").filter(Boolean);
+
+  if (!segments.length || segments.some((segment) => segment === "." || segment === "..")) {
+    throw new Error(`${label} must stay inside the current project.`);
+  }
+
+  return segments.join("/");
+}
+
+function normalizeComponentName(value: string, label: string) {
+  const normalized = value.trim();
+
+  if (!normalized) throw new Error(`${label} cannot be empty.`);
+
+  if (normalized.includes("/") || normalized.includes("\\")) {
+    throw new Error(`${label} must be a top-level entry name.`);
+  }
+
+  return normalized;
+}
+
+function normalizeOptionalStringArray(
+  values: string[] | undefined,
+  label: string,
+  normalize: (value: string, label: string) => string,
+) {
+  if (!values) return undefined;
+
+  return [...new Set(values.map((value, index) =>
+    normalize(value, `${label}[${index}]`),
+  ))];
+}
+
+function normalizeChecksum(value: string | undefined, label: string) {
+  if (value === undefined) return undefined;
+
+  const normalized = value.trim().toLowerCase().replace(/^sha256[:=-]/i, "");
+
+  if (!/^[a-f0-9]{64}$/u.test(normalized)) {
+    throw new Error(`${label} must be a SHA-256 hex digest.`);
+  }
+
+  return normalized;
+}
+
+function readInstallModifiers(
+  record: InstallModifierFields,
+  label: string,
+) {
+  return compact({
+    includePath: normalizeOptionalStringArray(
+      record.includePath,
+      `${label}.includePath`,
+      normalizeRelativeArchivePath,
+    ),
+    stripPrefix: record.stripPrefix === undefined
+      ? undefined
+      : normalizeRelativeArchivePath(record.stripPrefix, `${label}.stripPrefix`),
+    patches: normalizeOptionalStringArray(
+      record.patches,
+      `${label}.patches`,
+      normalizeProjectRelativePath,
+    ),
+    components: normalizeOptionalStringArray(
+      record.components,
+      `${label}.components`,
+      normalizeComponentName,
+    ),
+    checksum: normalizeChecksum(record.checksum, `${label}.checksum`),
+  });
 }
 
 function readSource(value: unknown, label: string) {
@@ -150,6 +293,16 @@ function parseDependency(value: unknown, nameOrIndex: number | string, fallbackN
     branch,
     prerelease: readOptionalBoolean(record, "prerelease", label),
     fullProject: readOptionalBoolean(record, "fullProject", label),
+    ...readInstallModifiers(
+      {
+        checksum: readOptionalString(record, "checksum", label),
+        components: readOptionalStringArray(record, "components", label),
+        includePath: readOptionalStringArray(record, "includePath", label),
+        patches: readOptionalStringArray(record, "patches", label),
+        stripPrefix: readOptionalString(record, "stripPrefix", label),
+      },
+      label,
+    ),
   }) as ManifestDependency;
 }
 
@@ -216,6 +369,11 @@ function getManifestEntryValue(dependency: ManifestDependency) {
     branch: dependency.branch,
     prerelease: dependency.prerelease,
     fullProject: dependency.fullProject,
+    includePath: dependency.includePath,
+    stripPrefix: dependency.stripPrefix,
+    patches: dependency.patches,
+    components: dependency.components,
+    checksum: dependency.checksum,
   });
 
   if (Object.keys(entry).length === 1) {
@@ -249,6 +407,7 @@ export async function addPackageManifestDependency(
     branch: options.branch,
     prerelease: options.prerelease,
     fullProject: options.fullProject,
+    ...readInstallModifiers(options, "dependency"),
   }) as ManifestDependency;
   const manifest = await readManifestForWrite();
   const dependencies = "dependencies" in manifest ? manifest.dependencies : {};
@@ -338,5 +497,10 @@ export function getManifestDependencyOptions(
     tag: dependency.tag,
     branch: dependency.branch,
     prerelease: dependency.prerelease,
+    includePath: dependency.includePath,
+    stripPrefix: dependency.stripPrefix,
+    patches: dependency.patches,
+    components: dependency.components,
+    checksum: dependency.checksum,
   }) as GetPkgOptions;
 }

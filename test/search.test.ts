@@ -1,6 +1,6 @@
-const test = require("node:test");
-const assert = require("node:assert/strict");
-const path = require("node:path");
+import { test } from "vitest";
+import assert from "node:assert/strict";
+import path from "node:path";
 
 function clearDistCache() {
   for (const cachePath of Object.keys(require.cache)) {
@@ -10,19 +10,28 @@ function clearDistCache() {
   }
 }
 
-function createMockAxios(data) {
-  const calls = [];
-  const mockAxios = async (url, config = {}) => {
-    calls.push({ config, url });
+function createMockAxios(data: TestAxiosRouteValue): TestMockAxios {
+  const calls: TestAxiosCall[] = [];
+  const mockAxios = async (url: string, config: Partial<TestAxiosConfig> = {}) => {
+    const normalizedConfig: TestAxiosConfig = {
+      ...config,
+      headers: config.headers ?? {},
+      params: config.params ?? {},
+    };
 
-    return { data };
+    calls.push({ config: normalizedConfig, url });
+
+    return { data, headers: {} };
   };
 
   mockAxios.calls = calls;
   return mockAxios;
 }
 
-async function withMockedAxios(data, callback) {
+async function withMockedAxios(
+  data: TestAxiosRouteValue,
+  callback: (mockAxios: TestMockAxios) => Promise<void> | void,
+) {
   const axiosPath = require.resolve("axios");
   const previousAxios = require.cache[axiosPath];
   const previousGitHubToken = process.env.GITHUB_TOKEN;
@@ -39,7 +48,7 @@ async function withMockedAxios(data, callback) {
     id: axiosPath,
     loaded: true,
     paths: module.paths,
-  };
+  } as unknown as NodeJS.Module;
 
   try {
     await callback(mockAxios);
@@ -123,24 +132,24 @@ test("searchGitHubPackages searches C++ repositories sorted by stars", async () 
       });
 
       assert.equal(
-        mockAxios.calls[0].url,
+        mockAxios.calls[0]!.url,
         "https://api.github.com/search/repositories",
       );
-      assert.deepEqual(mockAxios.calls[0].config.params, {
+      assert.deepEqual(mockAxios.calls[0]!.config.params, {
         order: "desc",
         per_page: 2,
         q: "json parser language:C++ fork:false archived:false",
         sort: "stars",
       });
       assert.deepEqual(
-        results.map((result) => result.repositoryPath),
+        results.map((result: { repositoryPath: string }) => result.repositoryPath),
         ["/nlohmann/json", "/Tencent/rapidjson"],
       );
       assert.equal(results[0].repositoryUrl, "https://github.com/nlohmann/json");
-      assert.deepEqual(formatSearchResults(results).map((row) => row.stars), [
-        "47k",
-        "14k",
-      ]);
+      assert.deepEqual(
+        formatSearchResults(results).map((row: { stars: string }) => row.stars),
+        ["47k", "14k"],
+      );
     },
   );
 });
