@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta
+      name="description"
+      content="cppkg-cli command reference for C and C++ package, compiler, and build workflows."
+    >
+    <title>cppkg-cli Commands</title>
+    <link rel="icon" href="assets/icon.png">
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body>
+    <header class="topbar">
+      <a class="brand" href="#overview" aria-label="cppkg-cli command reference">
+        <img src="assets/icon.png" alt="" width="40" height="40">
+        <span>
+          <strong>cppkg-cli</strong>
+          <small>Command Reference</small>
+        </span>
+      </a>
+      <nav class="topnav" aria-label="Primary">
+        <a href="index.html">Guide</a>
+        <a href="#commands">Commands</a>
+        <a href="https://github.com/JeremyYu-cn/cppkg-cli">GitHub</a>
+        <a href="commands.zh-CN.html">&#20013;&#25991;</a>
+      </nav>
+    </header>
+
+    <div class="shell">
+      <aside class="sidebar" aria-label="Command navigation">
+        <label class="search">
+          <span>Search commands</span>
+          <input id="command-search" type="search" placeholder="compile, docker, cache">
+        </label>
+        <nav id="command-nav" class="command-nav"></nav>
+      </aside>
+
+      <main>
+        <section id="overview" class="overview">
+          <div>
+            <p class="eyebrow" id="version-label">Command Reference</p>
+            <h1>cppkg-cli Command Reference</h1>
+            <p id="project-description">
+              Download C/C++ packages into a shared include directory or project workspace.
+            </p>
+          </div>
+          <pre><code>npm install -g cppkg-cli
+cppkg-cli --help</code></pre>
+        </section>
+
+        <section class="quick-grid" aria-label="Quick workflows">
+          <div>
+            <h2>Package Setup</h2>
+            <code>cppkg-cli init</code>
+            <code>cppkg-cli add nlohmann/json --install</code>
+          </div>
+          <div>
+            <h2>Project Build</h2>
+            <code>cppkg-cli compile src/main.cpp -o app</code>
+            <code>cppkg-cli build --release</code>
+          </div>
+          <div>
+            <h2>Compiler Env</h2>
+            <code>cppkg-cli compiler list</code>
+            <code>cppkg-cli compiler install clang-18</code>
+          </div>
+        </section>
+
+        <section id="commands" class="commands-section">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">Reference</p>
+              <h2>All Commands</h2>
+            </div>
+            <p id="command-count"></p>
+          </div>
+          <div id="command-list" class="command-list" aria-live="polite"></div>
+        </section>
+      </main>
+    </div>
+
+    <script src="app.js" type="module"></script>
+  </body>
+</html>
