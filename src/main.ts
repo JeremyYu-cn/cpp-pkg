@@ -4,6 +4,11 @@ import { Command } from "commander";
 import fs from "node:fs";
 import path from "node:path";
 import { registerAddCommand } from "./commands/add";
+import { registerBuildCommand } from "./commands/build";
+import { registerCacheCommand } from "./commands/cache";
+import { registerCMakeCommand } from "./commands/cmake";
+import { registerCompileCommand } from "./commands/compile";
+import { registerCompilerCommand } from "./commands/compiler";
 import { registerConfigCommand } from "./commands/config";
 import { registerGetCommand } from "./commands/get";
 import { registerInitCommand } from "./commands/init";
@@ -43,6 +48,9 @@ async function main() {
   registerAddCommand(program);
   registerGetCommand(program);
   registerInitCommand(program);
+  registerCompileCommand(program);
+  registerBuildCommand(program);
+  registerCompilerCommand(program);
   registerInstallCommand(program);
   registerInspectCommand(program);
   registerListCommand(program);
@@ -50,6 +58,8 @@ async function main() {
   registerSearchCommand(program);
   registerStatusCommand(program);
   registerUpdateCommand(program);
+  registerCacheCommand(program);
+  registerCMakeCommand(program);
   registerConfigCommand(program);
 
   await program.parseAsync();

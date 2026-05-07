@@ -42,6 +42,8 @@ test("get help exposes version selection options", async () => {
     assert.equal(result.status, 0);
     assert.match(result.stdout, /--tag <tag>/);
     assert.match(result.stdout, /--branch <branch>/);
+    assert.match(result.stdout, /--version-range <range>/);
+    assert.match(result.stdout, /--version-policy <policy>/);
     assert.match(result.stdout, /--prerelease/);
     assert.match(result.stdout, /--no-cache/);
   });
@@ -54,6 +56,8 @@ test("add help exposes manifest write and install options", async () => {
     assert.equal(result.status, 0);
     assert.match(result.stdout, /Add one dependency to cppkg\.json/);
     assert.match(result.stdout, /--name <name>/);
+    assert.match(result.stdout, /--version-range <range>/);
+    assert.match(result.stdout, /--version-policy <policy>/);
     assert.match(result.stdout, /--install/);
     assert.match(result.stdout, /--force/);
   });
@@ -66,6 +70,8 @@ test("update help exposes version selection options", async () => {
     assert.equal(result.status, 0);
     assert.match(result.stdout, /--tag <tag>/);
     assert.match(result.stdout, /--branch <branch>/);
+    assert.match(result.stdout, /--version-range <range>/);
+    assert.match(result.stdout, /--version-policy <policy>/);
     assert.match(result.stdout, /--prerelease/);
     assert.match(result.stdout, /--no-cache/);
   });
@@ -84,12 +90,76 @@ test("install help exposes manifest install options", async () => {
   });
 });
 
+test("compile help exposes host and Docker compiler options", async () => {
+  await withTempDir(async (cwd) => {
+    const result = runCli(["compile", "--help"], cwd);
+
+    assert.equal(result.status, 0);
+    assert.match(result.stdout, /Compile C\/C\+\+ source files/);
+    assert.match(result.stdout, /--compiler <command>/);
+    assert.match(result.stdout, /--toolchain <name>/);
+    assert.match(result.stdout, /--docker/);
+    assert.match(result.stdout, /--docker-image <image>/);
+    assert.match(result.stdout, /--dry-run/);
+  });
+});
+
+test("build help exposes CMake and Docker compiler environment options", async () => {
+  await withTempDir(async (cwd) => {
+    const result = runCli(["build", "--help"], cwd);
+
+    assert.equal(result.status, 0);
+    assert.match(result.stdout, /Configure and build a CMake project/);
+    assert.match(result.stdout, /--build-dir <path>/);
+    assert.match(result.stdout, /--toolchain <name>/);
+    assert.match(result.stdout, /--docker/);
+    assert.match(result.stdout, /--docker-image <image>/);
+    assert.match(result.stdout, /--dry-run/);
+  });
+});
+
+test("compiler help exposes version management subcommands", async () => {
+  await withTempDir(async (cwd) => {
+    const result = runCli(["compiler", "--help"], cwd);
+
+    assert.equal(result.status, 0);
+    assert.match(result.stdout, /Manage compiler versions/);
+    assert.match(result.stdout, /list/);
+    assert.match(result.stdout, /install/);
+    assert.match(result.stdout, /use/);
+  });
+});
+
 test("inspect help exposes project include inspection command", async () => {
   await withTempDir(async (cwd) => {
     const result = runCli(["inspect", "--help"], cwd);
 
     assert.equal(result.status, 0);
     assert.match(result.stdout, /Inspect C\/C\+\+ source includes/);
+    assert.match(result.stdout, /--add/);
+    assert.match(result.stdout, /--install/);
+  });
+});
+
+test("cache help exposes archive cache subcommands", async () => {
+  await withTempDir(async (cwd) => {
+    const result = runCli(["cache", "--help"], cwd);
+
+    assert.equal(result.status, 0);
+    assert.match(result.stdout, /Manage downloaded archive cache/);
+    assert.match(result.stdout, /list/);
+    assert.match(result.stdout, /clean/);
+  });
+});
+
+test("cmake help exposes integration helper generation", async () => {
+  await withTempDir(async (cwd) => {
+    const result = runCli(["cmake", "--help"], cwd);
+
+    assert.equal(result.status, 0);
+    assert.match(result.stdout, /Generate a cppkg\.cmake integration helper/);
+    assert.match(result.stdout, /--output <path>/);
+    assert.match(result.stdout, /--force/);
   });
 });
 

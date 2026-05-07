@@ -12,6 +12,7 @@ import type {
   ProviderRelease,
   ResolvedInputSource,
 } from "./types";
+import { pickReleaseByVersionRange } from "./versions";
 
 const ZIP_CONTENT_TYPES = new Set([
   "application/octet-stream",
@@ -395,6 +396,22 @@ export async function fetchLatestGitHubRelease(
     return pickReleaseByTag(res.data, options.tag);
   }
 
+  if (options.versionRange) {
+    const release = pickReleaseByVersionRange(
+      res.data,
+      options.versionRange,
+      options.prerelease,
+    );
+
+    if (!release) {
+      throw new Error(
+        `No GitHub release for ${repoPath} matches version range ${options.versionRange}.`,
+      );
+    }
+
+    return release;
+  }
+
   return pickGitHubRelease(res.data, options.prerelease) ?? null;
 }
 
@@ -419,6 +436,22 @@ export async function fetchLatestGiteeRelease(
 
   if (options.tag) {
     return pickReleaseByTag(res.data, options.tag);
+  }
+
+  if (options.versionRange) {
+    const release = pickReleaseByVersionRange(
+      res.data,
+      options.versionRange,
+      options.prerelease,
+    );
+
+    if (!release) {
+      throw new Error(
+        `No Gitee release for ${repoPath} matches version range ${options.versionRange}.`,
+      );
+    }
+
+    return release;
   }
 
   return pickGiteeRelease(res.data, options.prerelease);

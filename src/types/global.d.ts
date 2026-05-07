@@ -1,3 +1,8 @@
+export type VersionPolicy =
+  | "default-branch"
+  | "latest-prerelease"
+  | "latest-release";
+
 export type GetPkgOptions = {
   httpProxy?: string;
   httpsProxy?: string;
@@ -7,6 +12,8 @@ export type GetPkgOptions = {
   fullProject?: boolean;
   tag?: string;
   branch?: string;
+  versionPolicy?: VersionPolicy;
+  versionRange?: string;
   prerelease?: boolean;
   includePath?: string | string[];
   stripPrefix?: string;
@@ -16,7 +23,13 @@ export type GetPkgOptions = {
 };
 
 export type SourceRequest = {
-  type: "archive-url" | "branch" | "latest-release" | "tag";
+  type:
+    | "archive-url"
+    | "branch"
+    | "default-branch"
+    | "latest-release"
+    | "tag"
+    | "version-range";
   value: string | null;
   includePrerelease?: boolean;
   includePath?: string[];

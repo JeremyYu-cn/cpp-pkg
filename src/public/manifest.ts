@@ -1,18 +1,26 @@
 import fs from "node:fs";
 import { promises as fsp } from "node:fs";
 import path from "node:path";
-import type { GetPkgOptions } from "../types/global";
+import type { GetPkgOptions, VersionPolicy } from "../types/global";
 import { resolveInputSource } from "../tools/download/sources";
 
 export const MANIFEST_FILE_NAME = "cppkg.json";
 
 const DEPENDENCY_KEYS = new Set([
   "name", "source", "tag", "branch", "prerelease", "fullProject",
-  "includePath", "stripPrefix", "patches", "components", "checksum",
+  "versionPolicy", "versionRange", "includePath", "stripPrefix", "patches",
+  "components", "checksum",
+]);
+
+const VERSION_POLICIES = new Set<VersionPolicy>([
+  "default-branch",
+  "latest-prerelease",
+  "latest-release",
 ]);
 
 export type ManifestDependency = {
   name?: string; source: string; tag?: string; branch?: string;
+  versionPolicy?: VersionPolicy; versionRange?: string;
   prerelease?: boolean; fullProject?: boolean;
   includePath?: string[]; stripPrefix?: string; patches?: string[];
   components?: string[]; checksum?: string;
@@ -39,6 +47,8 @@ export type AddManifestDependencyOptions = Pick<
   | "prerelease"
   | "stripPrefix"
   | "tag"
+  | "versionPolicy"
+  | "versionRange"
 > & {
   force?: boolean;
 };
@@ -89,6 +99,30 @@ function readOptionalBoolean(record: Record<string, unknown>, key: string, label
   }
 
   return value;
+}
+
+function normalizeVersionPolicyValue(value: string, label: string) {
+  if (!VERSION_POLICIES.has(value as VersionPolicy)) {
+    throw new Error(
+      `${label} must be one of: ${[...VERSION_POLICIES].join(", ")}.`,
+    );
+  }
+
+  return value as VersionPolicy;
+}
+
+function readOptionalVersionPolicy(
+  record: Record<string, unknown>,
+  key: string,
+  label: string,
+) {
+  const value = readOptionalString(record, key, label);
+
+  if (value === undefined) {
+    return undefined;
+  }
+
+  return normalizeVersionPolicyValue(value, `${label}.${key}`);
 }
 
 function readOptionalStringArray(
@@ -265,6 +299,36 @@ function assertDependencyKeys(record: Record<string, unknown>, label: string) {
   );
 }
 
+function assertVersionSelection(
+  selection: Pick<
+    ManifestDependency,
+    "branch" | "tag" | "versionPolicy" | "versionRange"
+  >,
+  label: string,
+) {
+  if (
+    selection.tag &&
+    selection.branch &&
+    !selection.versionRange &&
+    !selection.versionPolicy
+  ) {
+    throw new Error(`${label} cannot define both tag and branch.`);
+  }
+
+  const selected = [
+    selection.tag,
+    selection.branch,
+    selection.versionRange,
+    selection.versionPolicy,
+  ].filter(Boolean);
+
+  if (selected.length > 1) {
+    throw new Error(
+      `${label} can define only one of tag, branch, versionRange, or versionPolicy.`,
+    );
+  }
+}
+
 function parseDependency(value: unknown, nameOrIndex: number | string, fallbackName?: string): ManifestDependency {
   const label = labelFor(nameOrIndex);
 
@@ -281,16 +345,23 @@ function parseDependency(value: unknown, nameOrIndex: number | string, fallbackN
 
   const tag = readOptionalString(record, "tag", label);
   const branch = readOptionalString(record, "branch", label);
+  const versionPolicy = readOptionalVersionPolicy(record, "versionPolicy", label);
+  const versionRange = readOptionalString(record, "versionRange", label);
 
-  if (tag && branch) {
-    throw new Error(`${label} cannot define both tag and branch.`);
-  }
+  assertVersionSelection({
+    ...(branch ? { branch } : {}),
+    ...(tag ? { tag } : {}),
+    ...(versionPolicy ? { versionPolicy } : {}),
+    ...(versionRange ? { versionRange } : {}),
+  }, label);
 
   return compact({
     name: fallbackName ?? readOptionalString(record, "name", label),
     source: readSource(record.source, label),
     tag,
     branch,
+    versionPolicy,
+    versionRange,
     prerelease: readOptionalBoolean(record, "prerelease", label),
     fullProject: readOptionalBoolean(record, "fullProject", label),
     ...readInstallModifiers(
@@ -367,6 +438,8 @@ function getManifestEntryValue(dependency: ManifestDependency) {
     source: dependency.source,
     tag: dependency.tag,
     branch: dependency.branch,
+    versionPolicy: dependency.versionPolicy,
+    versionRange: dependency.versionRange,
     prerelease: dependency.prerelease,
     fullProject: dependency.fullProject,
     includePath: dependency.includePath,
@@ -384,8 +457,19 @@ function getManifestEntryValue(dependency: ManifestDependency) {
 }
 
 function assertAddOptions(options: AddManifestDependencyOptions) {
-  if (options.tag && options.branch) {
+  if (
+    options.tag &&
+    options.branch &&
+    !options.versionPolicy &&
+    !options.versionRange
+  ) {
     throw new Error("Options --tag and --branch cannot be used together.");
+  }
+
+  assertVersionSelection(options, "Options");
+
+  if (options.versionPolicy) {
+    normalizeVersionPolicyValue(options.versionPolicy, "Option --version-policy");
   }
 }
 
@@ -400,11 +484,19 @@ export async function addPackageManifestDependency(
   const name = options.name
     ? readString(options.name, "dependency name")
     : sourceDetails.packageName;
+  const versionPolicy = options.versionPolicy
+    ? normalizeVersionPolicyValue(options.versionPolicy, "Option --version-policy")
+    : undefined;
+  const versionRange = options.versionRange
+    ? readString(options.versionRange, "Option --version-range")
+    : undefined;
   const dependency = compact({
     name,
     source,
     tag: options.tag,
     branch: options.branch,
+    versionPolicy,
+    versionRange,
     prerelease: options.prerelease,
     fullProject: options.fullProject,
     ...readInstallModifiers(options, "dependency"),
@@ -496,6 +588,8 @@ export function getManifestDependencyOptions(
     fullProject: dependency.fullProject,
     tag: dependency.tag,
     branch: dependency.branch,
+    versionPolicy: dependency.versionPolicy,
+    versionRange: dependency.versionRange,
     prerelease: dependency.prerelease,
     includePath: dependency.includePath,
     stripPrefix: dependency.stripPrefix,

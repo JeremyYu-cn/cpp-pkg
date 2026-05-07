@@ -84,12 +84,17 @@ Successful installs, updates, and removals also refresh `./cppkg-lock.json`, whi
 | `cppkg-cli add <source>`          | Add one dependency to `cppkg.json`, optionally installing it.             |
 | `cppkg-cli search <query...>`     | Search GitHub for C/C++ libraries sorted by stars.                        |
 | `cppkg-cli inspect`               | Inspect C/C++ includes and report package needs.                          |
+| `cppkg-cli compile <files...>`    | Compile simple source files with cppkg include paths.                     |
+| `cppkg-cli build`                 | Configure and build a CMake project.                                      |
+| `cppkg-cli compiler <subcommand>` | Manage compiler versions and Docker-backed compiler profiles.             |
 | `cppkg-cli install [selector...]` | Install all manifest dependencies, or selected manifest entries.          |
 | `cppkg-cli get <source-url...>`   | Install one or more package sources directly.                             |
 | `cppkg-cli list`                  | List packages tracked in `deps.json`.                                     |
 | `cppkg-cli status`                | Check manifest, lockfile, metadata, and installed files.                  |
 | `cppkg-cli update [selector]`     | Update one tracked package, or all packages when no selector is provided. |
 | `cppkg-cli remove <selector>`     | Remove one tracked package.                                               |
+| `cppkg-cli cache <subcommand>`    | List or clean downloaded archive cache files.                             |
+| `cppkg-cli cmake`                 | Generate a `cppkg.cmake` integration helper.                              |
 | `cppkg-cli config <subcommand>`   | Manage project-level defaults in `./cppkg.config.json`.                   |
 
 Run any command with `--help` for its current options.
@@ -142,6 +147,8 @@ Manifest object fields:
 | `name`        | string             | Optional selector name for array entries. In map form, the map key is the dependency name.                               |
 | `tag`         | string             | Install a specific release tag, or repository tag when no matching release exists.                                       |
 | `branch`      | string             | Install a specific repository branch.                                                                                    |
+| `versionRange` | string           | Install the highest release whose semantic version tag satisfies a range such as `^1.2.0` or `>=1.0.0 <2.0.0`.          |
+| `versionPolicy` | string          | Version policy: `latest-release`, `latest-prerelease`, or `default-branch`.                                             |
 | `prerelease`  | boolean            | Allow prerelease entries when resolving the latest release.                                                              |
 | `fullProject` | boolean            | Skip include detection and install as a full project.                                                                    |
 | `includePath` | string or string[] | Archive-relative include directory or directories to install. Direct zip URLs are installed as headers when this is set. |
@@ -150,7 +157,7 @@ Manifest object fields:
 | `components`  | string or string[] | Top-level include or project entries to install from the selected root.                                                  |
 | `checksum`    | string             | Expected archive SHA-256 digest. `sha256:<digest>` is also accepted.                                                     |
 
-`tag` and `branch` cannot be used together for the same dependency.
+`tag`, `branch`, `versionRange`, and `versionPolicy` are mutually exclusive for the same dependency.
 
 Example with install modifiers:
 
@@ -193,6 +200,8 @@ Version and install-mode options:
 ```bash
 cppkg-cli get https://github.com/nlohmann/json --tag v3.12.0
 cppkg-cli get https://github.com/lvgl/lvgl --branch master
+cppkg-cli get https://github.com/owner/repo --version-range '^1.2.0'
+cppkg-cli get https://github.com/owner/repo --version-policy default-branch
 cppkg-cli get https://github.com/owner/repo --prerelease
 cppkg-cli get https://github.com/lvgl/lvgl --full-project
 cppkg-cli get https://github.com/nlohmann/json --no-cache
@@ -244,7 +253,63 @@ Scan the current project for C/C++ includes and compare detected package candida
 
 ```bash
 cppkg-cli inspect
+cppkg-cli inspect --add
+cppkg-cli inspect --install
 ```
+
+Known include patterns such as `fmt/*` and `nlohmann/*` are mapped to installable package sources when possible. `--add` writes recommended missing candidates to `cppkg.json`; `--install` also installs them.
+
+## Compile And Build
+
+For small projects without CMake, compile source files with the configured cppkg include directory:
+
+```bash
+cppkg-cli compile src/main.cpp -o app
+cppkg-cli compile src/main.cpp src/app.cpp --compiler clang++ --std c++23 -o build/app
+```
+
+For CMake projects, `build` configures and builds in `./build` by default. It creates `cppkg.cmake` when missing and injects it during CMake configure so the shared include directory is available:
+
+```bash
+cppkg-cli build
+cppkg-cli build --release
+cppkg-cli build --target app --build-dir cmake-build
+```
+
+Use `--dry-run` to inspect the compiler or CMake commands without executing them:
+
+```bash
+cppkg-cli compile src/main.cpp --dry-run
+cppkg-cli build --release --dry-run
+```
+
+Run the same commands inside Docker to unify compiler and CMake versions across machines:
+
+```bash
+cppkg-cli compile src/main.cpp -o app --docker --docker-image gcc:latest
+cppkg-cli build --docker --docker-image cppkg-build:latest
+```
+
+`--docker` mounts the current project at `/workspace` and runs the compiler command there. The default Docker image is `gcc:latest`, which is enough for `compile`; `build` needs an image that also provides `cmake`.
+
+Compiler versions can be managed as profiles in `cppkg-toolchains.json`:
+
+```bash
+cppkg-cli compiler list
+cppkg-cli compiler install gcc-13 --dry-run
+cppkg-cli compiler install gcc-13 --set-default
+cppkg-cli compiler add project-clang --kind clang --compiler-version 18 --docker-image cppkg-clang:18 --set-default
+cppkg-cli compiler current
+```
+
+Use a saved profile explicitly, or let `compile` and `build` use the default profile:
+
+```bash
+cppkg-cli compile src/main.cpp --toolchain gcc-13 -o app
+cppkg-cli build --toolchain project-clang
+```
+
+Built-in Docker profiles include `gcc-13`, `gcc-14`, `gcc-latest`, `clang-17`, `clang-18`, and `clang-latest`. GCC profiles use official `gcc:<version>` images. Clang profiles default to `silkeh/clang:<version>`; override with `--docker-image` when your team has a preferred image.
 
 ## Manage Packages
 
@@ -277,6 +342,14 @@ Remove one package:
 cppkg-cli remove json
 ```
 
+Manage downloaded archive cache files:
+
+```bash
+cppkg-cli cache list
+cppkg-cli cache clean
+cppkg-cli cache clean --older-than 30
+```
+
 Selectors accepted by `install`, `update`, and `remove`:
 
 | Selector                                           | Example                                                 |
@@ -288,6 +361,21 @@ Selectors accepted by `install`, `update`, and `remove`:
 | Recorded source URL                                | `https://github.com/nlohmann/json`                      |
 
 `install` selectors are matched against entries in `cppkg.json`. `update` and `remove` selectors are matched against installed records in `deps.json`.
+
+## CMake
+
+Generate a helper that exposes the shared include directory as `cppkg::headers` and adds full-project installs that contain `CMakeLists.txt`:
+
+```bash
+cppkg-cli cmake
+```
+
+Then include it from your project:
+
+```cmake
+include("${CMAKE_CURRENT_LIST_DIR}/cppkg.cmake")
+target_link_libraries(my_target PRIVATE cppkg::headers)
+```
 
 ## Config
 
@@ -336,7 +424,9 @@ Default layout:
 ```text
 your-project/
 ├── cppkg.json
+├── cppkg.cmake
 ├── cppkg-lock.json
+├── cppkg-toolchains.json
 └── cpp_libs/
     ├── deps.json
     ├── cache/
@@ -353,6 +443,7 @@ your-project/
 Install behavior:
 
 - Repository sources are checked for published releases through the GitHub or Gitee API.
+- Version ranges select the highest matching semantic-version release tag; `default-branch` skips release lookup and installs the repository default branch archive.
 - Downloaded archives are cached under the configured cache directory and reused by matching archive URL.
 - If `checksum` is set, the downloaded archive SHA-256 must match before extraction.
 - `stripPrefix` changes the extracted source root before patches, include detection, and project copying.

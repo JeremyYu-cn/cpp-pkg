@@ -29,6 +29,14 @@ export function registerAddCommand(program: Command) {
     .option("--tag <tag>", "Install a specific release tag or repository tag")
     .option("--branch <branch>", "Install a specific repository branch")
     .option(
+      "--version-range <range>",
+      "Install the latest release matching a semantic version range",
+    )
+    .option(
+      "--version-policy <policy>",
+      "Manifest version policy: latest-release, latest-prerelease, or default-branch",
+    )
+    .option(
       "--prerelease",
       "Allow prerelease versions when selecting the latest release",
     )

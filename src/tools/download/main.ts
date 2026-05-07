@@ -24,6 +24,12 @@ import {
   resolveInputSource,
 } from "./sources";
 
+const VERSION_POLICIES = new Set([
+  "default-branch",
+  "latest-prerelease",
+  "latest-release",
+]);
+
 type ReleaseBackedRepositoryContext<TRelease extends ProviderRelease> = {
   detectHeadersWithoutRelease?: boolean;
   inputSource: ResolvedGiteeRepositoryInput | ResolvedGitHubRepositoryInput;
@@ -48,6 +54,22 @@ function normalizeRefOption(value: string | undefined, optionName: string) {
   }
 
   return normalized;
+}
+
+function normalizeVersionPolicy(value: string | undefined) {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  const normalized = value.trim();
+
+  if (!VERSION_POLICIES.has(normalized)) {
+    throw new Error(
+      `Option --version-policy must be one of: ${[...VERSION_POLICIES].join(", ")}.`,
+    );
+  }
+
+  return normalized as GetPkgOptions["versionPolicy"];
 }
 
 function normalizeRelativeArchivePath(value: string, optionName: string) {
@@ -134,6 +156,11 @@ function normalizeChecksum(value: string | undefined) {
 function normalizeGetPkgOptions(options: GetPkgOptions) {
   const tag = normalizeRefOption(options.tag, "tag");
   const branch = normalizeRefOption(options.branch, "branch");
+  const versionRange = normalizeRefOption(
+    options.versionRange,
+    "version-range",
+  );
+  const versionPolicy = normalizeVersionPolicy(options.versionPolicy);
   const includePath = normalizeStringList(
     options.includePath,
     "include-path",
@@ -155,8 +182,21 @@ function normalizeGetPkgOptions(options: GetPkgOptions) {
   const checksum = normalizeChecksum(options.checksum);
   const normalizedOptions: GetPkgOptions = { ...options };
 
-  if (tag && branch) {
+  const explicitStrategies = [
+    tag,
+    branch,
+    versionRange,
+    versionPolicy === "default-branch" ? versionPolicy : undefined,
+  ].filter(Boolean);
+
+  if (tag && branch && explicitStrategies.length === 2) {
     throw new Error("Options --tag and --branch cannot be used together.");
+  }
+
+  if (explicitStrategies.length > 1) {
+    throw new Error(
+      "Options --tag, --branch, --version-range, and --version-policy default-branch cannot be used together.",
+    );
   }
 
   if (tag) {
@@ -169,6 +209,22 @@ function normalizeGetPkgOptions(options: GetPkgOptions) {
     normalizedOptions.branch = branch;
   } else {
     delete normalizedOptions.branch;
+  }
+
+  if (versionRange) {
+    normalizedOptions.versionRange = versionRange;
+  } else {
+    delete normalizedOptions.versionRange;
+  }
+
+  if (versionPolicy) {
+    normalizedOptions.versionPolicy = versionPolicy;
+
+    if (versionPolicy === "latest-prerelease") {
+      normalizedOptions.prerelease = true;
+    }
+  } else {
+    delete normalizedOptions.versionPolicy;
   }
 
   if (includePath.length) {
@@ -361,9 +417,20 @@ export async function getVCPkg(repoURL: string, options: GetPkgOptions = {}) {
 
   try {
     if (inputSource.kind === "archive-url") {
-      if (normalizedOptions.tag || normalizedOptions.branch) {
+      if (
+        normalizedOptions.tag ||
+        normalizedOptions.branch ||
+        normalizedOptions.versionRange ||
+        normalizedOptions.versionPolicy
+      ) {
+        if (!normalizedOptions.versionRange && !normalizedOptions.versionPolicy) {
+          throw new Error(
+            "Options --tag and --branch can only be used with GitHub or Gitee repository URLs.",
+          );
+        }
+
         throw new Error(
-          "Options --tag and --branch can only be used with GitHub or Gitee repository URLs.",
+          "Options --tag, --branch, --version-range, and --version-policy can only be used with GitHub or Gitee repository URLs.",
         );
       }
 
@@ -394,7 +461,8 @@ export async function getVCPkg(repoURL: string, options: GetPkgOptions = {}) {
         inputSource.repositoryPath,
         normalizedOptions,
       );
-      const release = normalizedOptions.branch
+      const release = normalizedOptions.branch ||
+          normalizedOptions.versionPolicy === "default-branch"
         ? null
         : await fetchLatestGiteeRelease(
             inputSource.repositoryPath,
@@ -403,7 +471,9 @@ export async function getVCPkg(repoURL: string, options: GetPkgOptions = {}) {
       const repositoryRef = normalizedOptions.branch || normalizedOptions.tag;
 
       await installReleaseAwareRepository({
-        detectHeadersWithoutRelease: Boolean(repositoryRef),
+        detectHeadersWithoutRelease: Boolean(
+          repositoryRef || normalizedOptions.versionPolicy === "default-branch",
+        ),
         inputSource,
         options: normalizedOptions,
         packageName,
@@ -425,7 +495,8 @@ export async function getVCPkg(repoURL: string, options: GetPkgOptions = {}) {
       inputSource.repositoryPath,
       normalizedOptions,
     );
-    const release = normalizedOptions.branch
+    const release = normalizedOptions.branch ||
+        normalizedOptions.versionPolicy === "default-branch"
       ? null
       : await fetchLatestGitHubRelease(
           inputSource.repositoryPath,
@@ -434,7 +505,9 @@ export async function getVCPkg(repoURL: string, options: GetPkgOptions = {}) {
     const repositoryRef = normalizedOptions.branch || normalizedOptions.tag;
 
     await installReleaseAwareRepository({
-      detectHeadersWithoutRelease: Boolean(repositoryRef),
+      detectHeadersWithoutRelease: Boolean(
+        repositoryRef || normalizedOptions.versionPolicy === "default-branch",
+      ),
       inputSource,
       options: normalizedOptions,
       packageName,

@@ -84,12 +84,17 @@ cppkg-cli install --frozen-lockfile
 | `cppkg-cli add <source>`          | 添加一个依赖到 `cppkg.json`，也可以同时安装。          |
 | `cppkg-cli search <query...>`     | 在 GitHub 上搜索 C/C++ 库，并按 star 数排序。          |
 | `cppkg-cli inspect`               | 扫描 C/C++ include 并报告项目需要的包。                |
+| `cppkg-cli compile <files...>`    | 使用 cppkg include 路径编译简单源码文件。              |
+| `cppkg-cli build`                 | 配置并构建 CMake 项目。                                |
+| `cppkg-cli compiler <subcommand>` | 管理编译器版本和 Docker 编译器 profile。               |
 | `cppkg-cli install [selector...]` | 安装全部 manifest 依赖，或只安装选中的 manifest 条目。 |
 | `cppkg-cli get <source-url...>`   | 直接安装一个或多个包来源。                             |
 | `cppkg-cli list`                  | 查看 `deps.json` 中记录的已安装包。                    |
 | `cppkg-cli status`                | 检查 manifest、锁文件、元数据和已安装文件。            |
 | `cppkg-cli update [selector]`     | 更新一个已安装包；不传 selector 时更新全部包。         |
 | `cppkg-cli remove <selector>`     | 删除一个已安装包。                                     |
+| `cppkg-cli cache <subcommand>`    | 查看或清理下载归档缓存。                               |
+| `cppkg-cli cmake`                 | 生成 `cppkg.cmake` 集成辅助文件。                      |
 | `cppkg-cli config <subcommand>`   | 管理 `./cppkg.config.json` 中的项目级默认配置。        |
 
 每个命令都可以加 `--help` 查看当前支持的选项。
@@ -142,6 +147,8 @@ Manifest 对象字段：
 | `name`        | string             | 数组条目的可选 selector 名称。映射写法里，映射 key 就是依赖名。                            |
 | `tag`         | string             | 安装指定 release tag；如果没有匹配 release，则安装对应的仓库 tag 归档。                    |
 | `branch`      | string             | 安装指定仓库分支。                                                                         |
+| `versionRange` | string           | 安装满足语义化版本范围的最高 release tag，例如 `^1.2.0` 或 `>=1.0.0 <2.0.0`。             |
+| `versionPolicy` | string          | 版本策略：`latest-release`、`latest-prerelease` 或 `default-branch`。                      |
 | `prerelease`  | boolean            | 解析 latest release 时允许选择 prerelease。                                                |
 | `fullProject` | boolean            | 跳过 include 探测，直接按完整项目安装。                                                    |
 | `includePath` | string 或 string[] | 要安装的归档内 include 目录。设置后，直接 zip URL 也可以按头文件安装。                     |
@@ -150,7 +157,7 @@ Manifest 对象字段：
 | `components`  | string 或 string[] | 只安装所选源码根或 include 目录下的顶层条目。                                              |
 | `checksum`    | string             | 期望的归档 SHA-256 摘要，也支持 `sha256:<digest>`。                                        |
 
-同一个依赖不能同时设置 `tag` 和 `branch`。
+同一个依赖不能同时设置 `tag`、`branch`、`versionRange` 和 `versionPolicy`。
 
 带安装修饰字段的示例：
 
@@ -193,6 +200,8 @@ cppkg-cli get https://example.com/downloads/my-sdk.zip
 ```bash
 cppkg-cli get https://github.com/nlohmann/json --tag v3.12.0
 cppkg-cli get https://github.com/lvgl/lvgl --branch master
+cppkg-cli get https://github.com/owner/repo --version-range '^1.2.0'
+cppkg-cli get https://github.com/owner/repo --version-policy default-branch
 cppkg-cli get https://github.com/owner/repo --prerelease
 cppkg-cli get https://github.com/lvgl/lvgl --full-project
 cppkg-cli get https://github.com/nlohmann/json --no-cache
@@ -244,7 +253,63 @@ cppkg-cli search fmt --no-cache
 
 ```bash
 cppkg-cli inspect
+cppkg-cli inspect --add
+cppkg-cli inspect --install
 ```
+
+常见 include 模式（例如 `fmt/*` 和 `nlohmann/*`）会尽量映射到可安装的包来源。`--add` 会把推荐的缺失候选写入 `cppkg.json`；`--install` 还会继续安装它们。
+
+## 编译和构建
+
+没有 CMake 的小项目，可以直接用当前配置的 cppkg include 目录编译源码文件：
+
+```bash
+cppkg-cli compile src/main.cpp -o app
+cppkg-cli compile src/main.cpp src/app.cpp --compiler clang++ --std c++23 -o build/app
+```
+
+CMake 项目可以用 `build` 配置和构建，默认构建目录是 `./build`。缺少 `cppkg.cmake` 时会自动生成，并在 CMake configure 阶段注入，让共享 include 目录可用：
+
+```bash
+cppkg-cli build
+cppkg-cli build --release
+cppkg-cli build --target app --build-dir cmake-build
+```
+
+用 `--dry-run` 可以只打印编译器或 CMake 命令，不实际执行：
+
+```bash
+cppkg-cli compile src/main.cpp --dry-run
+cppkg-cli build --release --dry-run
+```
+
+也可以在 Docker 里执行同样命令，让不同机器使用统一的编译器和 CMake 环境：
+
+```bash
+cppkg-cli compile src/main.cpp -o app --docker --docker-image gcc:latest
+cppkg-cli build --docker --docker-image cppkg-build:latest
+```
+
+`--docker` 会把当前项目挂载到 `/workspace` 并在其中执行命令。默认 Docker 镜像是 `gcc:latest`，足够用于 `compile`；`build` 需要镜像里也安装了 `cmake`。
+
+编译器版本可以作为 profile 管理在 `cppkg-toolchains.json` 中：
+
+```bash
+cppkg-cli compiler list
+cppkg-cli compiler install gcc-13 --dry-run
+cppkg-cli compiler install gcc-13 --set-default
+cppkg-cli compiler add project-clang --kind clang --compiler-version 18 --docker-image cppkg-clang:18 --set-default
+cppkg-cli compiler current
+```
+
+可以显式使用某个已保存 profile，也可以让 `compile` 和 `build` 使用默认 profile：
+
+```bash
+cppkg-cli compile src/main.cpp --toolchain gcc-13 -o app
+cppkg-cli build --toolchain project-clang
+```
+
+内置 Docker profile 包括 `gcc-13`、`gcc-14`、`gcc-latest`、`clang-17`、`clang-18` 和 `clang-latest`。GCC profile 使用官方 `gcc:<version>` 镜像。Clang profile 默认使用 `silkeh/clang:<version>`；如果团队有自己的镜像，可以用 `--docker-image` 覆盖。
 
 ## 管理包
 
@@ -277,6 +342,14 @@ cppkg-cli update lvgl --full-project
 cppkg-cli remove json
 ```
 
+管理下载归档缓存：
+
+```bash
+cppkg-cli cache list
+cppkg-cli cache clean
+cppkg-cli cache clean --older-than 30
+```
+
 `install`、`update` 和 `remove` 支持的 selector：
 
 | Selector                    | 示例                                                    |
@@ -288,6 +361,21 @@ cppkg-cli remove json
 | 已记录的来源 URL            | `https://github.com/nlohmann/json`                      |
 
 `install` 的 selector 会匹配 `cppkg.json` 中的条目。`update` 和 `remove` 的 selector 会匹配 `deps.json` 中的已安装记录。
+
+## CMake
+
+生成一个辅助文件，把共享 include 目录暴露为 `cppkg::headers`，并自动添加包含 `CMakeLists.txt` 的完整项目安装：
+
+```bash
+cppkg-cli cmake
+```
+
+然后在项目里引入：
+
+```cmake
+include("${CMAKE_CURRENT_LIST_DIR}/cppkg.cmake")
+target_link_libraries(my_target PRIVATE cppkg::headers)
+```
 
 ## 配置
 
@@ -336,7 +424,9 @@ cppkg-cli get https://github.com/nlohmann/json \
 ```text
 your-project/
 ├── cppkg.json
+├── cppkg.cmake
 ├── cppkg-lock.json
+├── cppkg-toolchains.json
 └── cpp_libs/
     ├── deps.json
     ├── cache/
@@ -353,6 +443,7 @@ your-project/
 安装行为：
 
 - GitHub 和 Gitee 仓库会先通过对应 API 检查已发布 release。
+- 版本范围会选择满足语义化版本范围的最高 release tag；`default-branch` 会跳过 release 查询并安装仓库默认分支归档。
 - 下载到的归档会缓存在配置的缓存目录里；后续相同 archive URL 会复用缓存。
 - 如果设置了 `checksum`，解压前会校验下载归档的 SHA-256。
 - `stripPrefix` 会在应用 patch、探测 include、复制项目之前调整源码根目录。
