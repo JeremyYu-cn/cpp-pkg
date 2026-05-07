@@ -110,10 +110,39 @@ test("inspect reports installed declared and missing package candidates", async 
     assert.match(result.stdout, /fmt\s+declared\s+fmt\/core\.h/);
     assert.match(result.stdout, /nlohmann\s+installed\s+nlohmann\/json\.hpp/);
     assert.match(result.stdout, /sqlite3\s+missing\s+sqlite3\.h/);
+    assert.match(result.stdout, /sqlite -> https:\/\/github\.com\/sqlite\/sqlite/);
     assert.doesNotMatch(result.stdout, /vector/);
     assert.doesNotMatch(result.stdout, /local\.hpp/);
     assert.doesNotMatch(result.stdout, /boost/);
     assert.doesNotMatch(result.stdout, /catch2/);
+  });
+});
+
+test("inspect add writes recommended missing packages to the manifest", async () => {
+  await withTempDir(async (cwd) => {
+    await fs.mkdir(path.join(cwd, "src"), { recursive: true });
+    await fs.writeFile(
+      path.join(cwd, "src", "main.cpp"),
+      [
+        "#include <fmt/core.h>",
+        "#include <nlohmann/json.hpp>",
+        "int main() { return 0; }",
+      ].join("\n"),
+      "utf8",
+    );
+
+    const result = runCli(["inspect", "--add"], cwd);
+    const manifest = JSON.parse(
+      await fs.readFile(path.join(cwd, "cppkg.json"), "utf8"),
+    );
+
+    assert.equal(result.status, 0);
+    assert.match(result.stdout, /Added fmt to cppkg\.json/);
+    assert.match(result.stdout, /Added json to cppkg\.json/);
+    assert.deepEqual(manifest.dependencies, {
+      fmt: "https://github.com/fmtlib/fmt",
+      json: "https://github.com/nlohmann/json",
+    });
   });
 });
 

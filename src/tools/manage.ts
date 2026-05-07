@@ -98,7 +98,12 @@ function resolveInstalledDependency(
 }
 
 function hasExplicitVersionOption(options: GetPkgOptions) {
-  return Boolean(options.tag || options.branch);
+  return Boolean(
+    options.tag ||
+    options.branch ||
+    options.versionRange ||
+    options.versionPolicy,
+  );
 }
 
 function getUpdatedPackageOptions(
@@ -114,21 +119,55 @@ function getUpdatedPackageOptions(
   if (options.tag) {
     updatedOptions.tag = options.tag;
     delete updatedOptions.branch;
+    delete updatedOptions.versionPolicy;
+    delete updatedOptions.versionRange;
     return updatedOptions;
   }
 
   if (options.branch) {
     updatedOptions.branch = options.branch;
     delete updatedOptions.tag;
+    delete updatedOptions.versionPolicy;
+    delete updatedOptions.versionRange;
+    return updatedOptions;
+  }
+
+  if (options.versionRange) {
+    updatedOptions.versionRange = options.versionRange;
+    delete updatedOptions.branch;
+    delete updatedOptions.tag;
+    delete updatedOptions.versionPolicy;
+    return updatedOptions;
+  }
+
+  if (options.versionPolicy) {
+    updatedOptions.versionPolicy = options.versionPolicy;
+    delete updatedOptions.branch;
+    delete updatedOptions.tag;
+    delete updatedOptions.versionRange;
     return updatedOptions;
   }
 
   if (requested?.type === "tag" && requested.value) {
     updatedOptions.tag = requested.value;
     delete updatedOptions.branch;
+    delete updatedOptions.versionPolicy;
+    delete updatedOptions.versionRange;
   } else if (requested?.type === "branch" && requested.value) {
     updatedOptions.branch = requested.value;
     delete updatedOptions.tag;
+    delete updatedOptions.versionPolicy;
+    delete updatedOptions.versionRange;
+  } else if (requested?.type === "version-range" && requested.value) {
+    updatedOptions.versionRange = requested.value;
+    delete updatedOptions.branch;
+    delete updatedOptions.tag;
+    delete updatedOptions.versionPolicy;
+  } else if (requested?.type === "default-branch") {
+    updatedOptions.versionPolicy = "default-branch";
+    delete updatedOptions.branch;
+    delete updatedOptions.tag;
+    delete updatedOptions.versionRange;
   }
 
   if (requested?.includePrerelease && options.prerelease === undefined) {
@@ -408,7 +447,11 @@ export async function updateInstalledPackages(
   const packageOptions = options;
 
   if (!selector && hasExplicitVersionOption(options)) {
-    throw new Error("Options --tag and --branch require a package selector.");
+    if (options.tag || options.branch) {
+      throw new Error("Options --tag and --branch require a package selector.");
+    }
+
+    throw new Error("Version selection options require a package selector.");
   }
 
   const installed = await readInstalledDependencies();

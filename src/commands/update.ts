@@ -27,6 +27,14 @@ export function registerUpdateCommand(program: Command) {
     )
     .option("--branch <branch>", "Update one package from a specific branch")
     .option(
+      "--version-range <range>",
+      "Update one package to the latest release matching a semantic version range",
+    )
+    .option(
+      "--version-policy <policy>",
+      "Update one package with a version policy: latest-release, latest-prerelease, or default-branch",
+    )
+    .option(
       "--prerelease",
       "Allow prerelease versions when selecting the latest release",
     )

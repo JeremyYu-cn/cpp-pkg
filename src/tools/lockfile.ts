@@ -80,11 +80,30 @@ function readManifestSourceRequest(dependency: ManifestDependency): SourceReques
     };
   }
 
+  if (dependency.versionRange) {
+    return {
+      ...modifiers,
+      type: "version-range",
+      value: dependency.versionRange,
+      ...(dependency.prerelease ? { includePrerelease: true } : {}),
+    };
+  }
+
+  if (dependency.versionPolicy === "default-branch") {
+    return {
+      ...modifiers,
+      type: "default-branch",
+      value: null,
+    };
+  }
+
   return {
     ...modifiers,
     type: "latest-release",
     value: null,
-    ...(dependency.prerelease ? { includePrerelease: true } : {}),
+    ...(dependency.prerelease || dependency.versionPolicy === "latest-prerelease"
+      ? { includePrerelease: true }
+      : {}),
   };
 }
 
@@ -257,7 +276,16 @@ export function getFrozenManifestDependencyOptions(
     options.tag = requested.value;
   } else if (requested?.type === "branch" && requested.value) {
     options.branch = requested.value;
-  } else if (requested?.type === "latest-release") {
+  } else if (requested?.type === "default-branch") {
+    const archiveName = locked.source.archiveName.replace(/\.zip$/i, "");
+
+    if (archiveName) {
+      options.branch = archiveName;
+    }
+  } else if (
+    requested?.type === "latest-release" ||
+    requested?.type === "version-range"
+  ) {
     const lockedTag = locked.release.tagName || locked.release.name;
 
     if (lockedTag) {

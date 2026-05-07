@@ -150,3 +150,42 @@ test("frozen manifest options pin latest-release locks to the resolved tag", asy
     });
   });
 });
+
+test("frozen manifest options pin version range locks to the resolved tag", async () => {
+  await withTempCwd(async () => {
+    await writeInstalledDependencies([
+      createDependency("json", "/nlohmann/json", {
+        type: "version-range",
+        value: "^1.0.0",
+      }),
+    ]);
+    await fs.writeFile(
+      "cppkg.json",
+      `${JSON.stringify(
+        {
+          dependencies: {
+            json: {
+              source: "https://github.com/nlohmann/json",
+              versionRange: "^1.0.0",
+            },
+          },
+        },
+        null,
+        2,
+      )}\n`,
+      "utf8",
+    );
+
+    const manifest = await readPackageManifest();
+    const locked = await requireLockedManifestDependencies(manifest.dependencies);
+    const options = getFrozenManifestDependencyOptions(
+      manifest.dependencies[0],
+      locked[0],
+    );
+
+    assert.deepEqual(options, {
+      fullProject: false,
+      tag: "v1.0.0",
+    });
+  });
+});

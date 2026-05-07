@@ -9,6 +9,7 @@ import {
   getPackageStatus,
   readManifestDependencies,
 } from "./packages";
+import { getIncludePackageRecommendation } from "./recommendations";
 import {
   collectSourceFiles,
   getPackageCandidateName,
@@ -21,6 +22,7 @@ export type {
   IncludeUsage,
   InspectedPackage,
   InspectPackageStatus,
+  PackageRecommendation,
   ProjectInspection,
 } from "./types";
 
@@ -91,14 +93,20 @@ export async function inspectProjectPackages(): Promise<ProjectInspection> {
   }
 
   const packages = [...packageUsages.entries()]
-    .map(([key, value]) => ({
-      includes: [...value.includes].sort(),
-      name: value.displayName,
-      status: getPackageStatus(key, installedKeys, manifestKeys),
-      usages: value.usages.sort((left, right) =>
-        left.filePath.localeCompare(right.filePath) || left.line - right.line,
-      ),
-    }))
+    .map(([key, value]) => {
+      const includes = [...value.includes].sort();
+      const recommendation = getIncludePackageRecommendation(includes);
+
+      return {
+        includes,
+        name: value.displayName,
+        ...(recommendation ? { recommendation } : {}),
+        status: getPackageStatus(key, installedKeys, manifestKeys),
+        usages: value.usages.sort((left, right) =>
+          left.filePath.localeCompare(right.filePath) || left.line - right.line,
+        ),
+      };
+    })
     .sort((left, right) =>
       left.status.localeCompare(right.status) || left.name.localeCompare(right.name),
     );

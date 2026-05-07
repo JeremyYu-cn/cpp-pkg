@@ -210,6 +210,79 @@ test("getManifestDependencyOptions combines manifest options with CLI proxies", 
   });
 });
 
+test("readPackageManifest parses version policies and ranges", async () => {
+  await withTempCwd(async () => {
+    await fs.writeFile(
+      "cppkg.json",
+      `${JSON.stringify(
+        {
+          dependencies: {
+            defaultBranch: {
+              source: "https://github.com/owner/default-branch",
+              versionPolicy: "default-branch",
+            },
+            range: {
+              prerelease: true,
+              source: "https://github.com/owner/range",
+              versionRange: "^1.2.0",
+            },
+          },
+        },
+        null,
+        2,
+      )}\n`,
+      "utf8",
+    );
+
+    const manifest = await readPackageManifest();
+
+    assert.deepEqual(manifest.dependencies, [
+      {
+        name: "defaultBranch",
+        source: "https://github.com/owner/default-branch",
+        versionPolicy: "default-branch",
+      },
+      {
+        name: "range",
+        prerelease: true,
+        source: "https://github.com/owner/range",
+        versionRange: "^1.2.0",
+      },
+    ]);
+    assert.deepEqual(getManifestDependencyOptions(manifest.dependencies[1]!), {
+      prerelease: true,
+      versionRange: "^1.2.0",
+    });
+  });
+});
+
+test("readPackageManifest rejects conflicting version selectors", async () => {
+  await withTempCwd(async () => {
+    await fs.writeFile(
+      "cppkg.json",
+      `${JSON.stringify(
+        {
+          dependencies: {
+            range: {
+              source: "https://github.com/owner/range",
+              tag: "v1.2.3",
+              versionRange: "^1.0.0",
+            },
+          },
+        },
+        null,
+        2,
+      )}\n`,
+      "utf8",
+    );
+
+    await assert.rejects(
+      () => readPackageManifest(),
+      /can define only one of tag, branch, versionRange, or versionPolicy/,
+    );
+  });
+});
+
 test("readPackageManifest parses install modifier fields", async () => {
   await withTempCwd(async () => {
     await fs.writeFile(

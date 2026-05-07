@@ -51,6 +51,23 @@ function getSourceRequest(
     };
   }
 
+  if (options.versionRange) {
+    return {
+      ...modifiers,
+      type: "version-range",
+      value: options.versionRange,
+      ...(options.prerelease ? { includePrerelease: true } : {}),
+    };
+  }
+
+  if (options.versionPolicy === "default-branch") {
+    return {
+      ...modifiers,
+      type: "default-branch",
+      value: null,
+    };
+  }
+
   return {
     ...modifiers,
     type: "latest-release",

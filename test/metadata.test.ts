@@ -109,6 +109,53 @@ test("buildInstalledDependency records latest release prerelease intent", () => 
   });
 });
 
+test("buildInstalledDependency records version range requests", () => {
+  const dependency = buildInstalledDependency(
+    repositorySource,
+    "cpp_libs/include",
+    release,
+    {
+      kind: "github-release",
+      label: "include.zip",
+      url: "https://github.com/nlohmann/json/releases/download/v3.12.0/include.zip",
+    },
+    ["nlohmann"],
+    ["nlohmann"],
+    "header-only",
+    "include",
+    { prerelease: true, versionRange: "^3.0.0" },
+  );
+
+  assert.deepEqual(dependency.source.requested, {
+    type: "version-range",
+    value: "^3.0.0",
+    includePrerelease: true,
+  });
+});
+
+test("buildInstalledDependency records default branch policy requests", () => {
+  const dependency = buildInstalledDependency(
+    repositorySource,
+    "cpp_libs/include",
+    null,
+    {
+      kind: "github-repository",
+      label: "main.zip",
+      url: "https://api.github.com/repos/nlohmann/json/zipball/main",
+    },
+    ["nlohmann"],
+    ["nlohmann"],
+    "header-only",
+    "include",
+    { versionPolicy: "default-branch" },
+  );
+
+  assert.deepEqual(dependency.source.requested, {
+    type: "default-branch",
+    value: null,
+  });
+});
+
 test("buildInstalledDependency records archive URL requests", () => {
   const dependency = buildInstalledDependency(
     archiveSource,

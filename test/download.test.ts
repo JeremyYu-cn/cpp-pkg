@@ -705,3 +705,107 @@ test("update reuses a recorded branch and accepts Gitee selector variants", asyn
     );
   });
 });
+
+test("getVCPkg selects the highest release matching a semantic version range", async () => {
+  await withTempCwd(async () => {
+    const selectedArchiveURL = "https://api.github.com/repos/owner/rangelib/zipball/v1.5.0";
+    const archive = makeZip({
+      "rangelib-1.5.0/include/rangelib/header.hpp": "#pragma once\n",
+    });
+
+    await withMockedAxios(
+      {
+        "https://api.github.com/repos/owner/rangelib": {
+          default_branch: "main",
+          full_name: "owner/rangelib",
+          html_url: "https://github.com/owner/rangelib",
+        },
+        "https://api.github.com/repos/owner/rangelib/releases": [
+          githubRelease({
+            tag_name: "v2.0.0",
+            zipball_url: "https://api.github.com/repos/owner/rangelib/zipball/v2.0.0",
+          }),
+          githubRelease({
+            tag_name: "v1.5.0",
+            zipball_url: selectedArchiveURL,
+          }),
+          githubRelease({
+            tag_name: "v1.2.0",
+            zipball_url: "https://api.github.com/repos/owner/rangelib/zipball/v1.2.0",
+          }),
+        ],
+        [selectedArchiveURL]: archive,
+      },
+      async (mockAxios) => {
+        const { getVCPkg } = require("../dist/tools/download/main.js");
+        const { readInstalledDependencies } = require("../dist/tools/deps.js");
+
+        await getVCPkg("https://github.com/owner/rangelib", {
+          versionRange: "^1.0.0",
+        });
+
+        await fs.access("cpp_libs/include/rangelib/header.hpp");
+
+        const installed = await readInstalledDependencies();
+        assert.equal(installed.dependencies[0].version, "v1.5.0");
+        assert.equal(installed.dependencies[0].source.archiveUrl, selectedArchiveURL);
+        assert.deepEqual(installed.dependencies[0].source.requested, {
+          type: "version-range",
+          value: "^1.0.0",
+        });
+        assert.deepEqual(
+          mockAxios.calls.map((call) => call.url),
+          [
+            "https://api.github.com/repos/owner/rangelib",
+            "https://api.github.com/repos/owner/rangelib/releases",
+            selectedArchiveURL,
+          ],
+        );
+      },
+    );
+  });
+});
+
+test("getVCPkg can install the repository default branch via version policy", async () => {
+  await withTempCwd(async () => {
+    const archiveURL = "https://api.github.com/repos/owner/defaultlib/zipball/main";
+    const archive = makeZip({
+      "defaultlib-main/include/defaultlib/header.hpp": "#pragma once\n",
+    });
+
+    await withMockedAxios(
+      {
+        "https://api.github.com/repos/owner/defaultlib": {
+          default_branch: "main",
+          full_name: "owner/defaultlib",
+          html_url: "https://github.com/owner/defaultlib",
+        },
+        [archiveURL]: archive,
+      },
+      async (mockAxios) => {
+        const { getVCPkg } = require("../dist/tools/download/main.js");
+        const { readInstalledDependencies } = require("../dist/tools/deps.js");
+
+        await getVCPkg("https://github.com/owner/defaultlib", {
+          versionPolicy: "default-branch",
+        });
+
+        await fs.access("cpp_libs/include/defaultlib/header.hpp");
+
+        const installed = await readInstalledDependencies();
+        assert.equal(installed.dependencies[0].version, "main");
+        assert.deepEqual(installed.dependencies[0].source.requested, {
+          type: "default-branch",
+          value: null,
+        });
+        assert.deepEqual(
+          mockAxios.calls.map((call) => call.url),
+          [
+            "https://api.github.com/repos/owner/defaultlib",
+            archiveURL,
+          ],
+        );
+      },
+    );
+  });
+});
