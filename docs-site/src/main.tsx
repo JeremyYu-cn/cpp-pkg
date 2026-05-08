@@ -4,8 +4,8 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import "github-markdown-css/github-markdown-light.css";
 import "./styles.css";
-import englishMarkdown from "../../README.md?raw";
-import chineseMarkdown from "../../docs/README.zh-CN.md?raw";
+import englishMarkdown from "../content/en.md?raw";
+import chineseMarkdown from "../content/zh-CN.md?raw";
 
 type Locale = "en" | "zh-CN";
 type Theme = "dark" | "light";

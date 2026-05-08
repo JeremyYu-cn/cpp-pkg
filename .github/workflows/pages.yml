@@ -34,7 +34,12 @@ jobs:
       - name: Build command reference
         run: npm run docs
 
+      - name: Build guide site
+        run: npm run docs:site:build
+
       - name: Configure Pages
+        # First deployment still requires Settings > Pages > Source = GitHub Actions.
+        # Auto-enablement needs a PAT or GitHub App token, not the default GITHUB_TOKEN.
         uses: actions/configure-pages@v5
 
       - name: Upload Pages artifact
