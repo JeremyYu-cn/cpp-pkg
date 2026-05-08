@@ -996,6 +996,55 @@
     },
     {
       "aliases": [
+        "serve"
+      ],
+      "arguments": [],
+      "children": [],
+      "command": "cppkg-cli server",
+      "description": "Start a local web server for browsing and downloading packages",
+      "examples": [
+        "cppkg-cli server",
+        "cppkg-cli server --host 0.0.0.0 --port 4936"
+      ],
+      "name": "server",
+      "options": [
+        {
+          "description": "Host interface to bind the server to",
+          "flags": "-H, --host <host>",
+          "optional": false,
+          "required": true,
+          "variadic": false,
+          "defaultValue": "127.0.0.1"
+        },
+        {
+          "description": "Port to listen on; use 0 to choose a random open port",
+          "flags": "-p, --port <port>",
+          "optional": false,
+          "required": true,
+          "variadic": false,
+          "defaultValue": "4936"
+        },
+        {
+          "description": "HTTP request proxy, overrides config",
+          "flags": "--http-proxy <url>",
+          "optional": false,
+          "required": true,
+          "variadic": false
+        },
+        {
+          "description": "HTTPS request proxy, overrides config",
+          "flags": "--https-proxy <url>",
+          "optional": false,
+          "required": true,
+          "variadic": false
+        }
+      ],
+      "path": "server",
+      "subcommands": [],
+      "usage": "cppkg-cli server [options]"
+    },
+    {
+      "aliases": [
         "doctor"
       ],
       "arguments": [],
@@ -1386,5 +1435,5 @@
     ],
     "usage": "cppkg-cli [options] [command]"
   },
-  "version": "0.2.0"
+  "version": "1.0.1"
 }

@@ -1,7 +1,7 @@
 import { Command } from "commander";
 import type { GetPkgOptions } from "../types/global";
 import { collectOption } from "./options";
-import { updateInstalledPackages } from "../tools/manage";
+import { updateInstalledPackages } from "../tools/manage/index";
 import { logger } from "../tools/logger";
 
 /**

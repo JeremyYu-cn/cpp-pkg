@@ -59,6 +59,7 @@ test("generated command metadata covers the CLI commands", async () => {
     "list",
     "remove",
     "search",
+    "server",
     "status",
     "update",
   ]) {

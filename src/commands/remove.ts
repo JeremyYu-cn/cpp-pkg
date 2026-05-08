@@ -1,5 +1,5 @@
 import { Command } from "commander";
-import { removeInstalledPackage } from "../tools/manage";
+import { removeInstalledPackage } from "../tools/manage/index";
 import { logger } from "../tools/logger";
 
 /**

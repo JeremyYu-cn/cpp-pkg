@@ -1,10 +1,35 @@
 import { spawn } from "node:child_process";
 import { rm } from "node:fs/promises";
 import { createRequire } from "node:module";
+import path from "node:path";
 import pc from "picocolors";
 
 const require = createRequire(import.meta.url);
 const tscBinPath = require.resolve("typescript/bin/tsc");
+const viteBinPath = path.join(
+  path.dirname(require.resolve("vite/package.json")),
+  "bin",
+  "vite.js",
+);
+
+async function runCommand(command, args) {
+  await new Promise((resolve, reject) => {
+    const child = spawn(process.execPath, [command, ...args], {
+      stdio: "inherit",
+    });
+
+    child.on("exit", (code) => {
+      if (code === 0) {
+        resolve(undefined);
+        return;
+      }
+
+      reject(new Error(`${path.basename(command)} exited with code ${code}`));
+    });
+
+    child.on("error", reject);
+  });
+}
 
 /**
  * Cleans the build output directory and runs the TypeScript compiler.
@@ -15,22 +40,8 @@ async function runBuild() {
     recursive: true,
   });
 
-  await new Promise((resolve, reject) => {
-    const child = spawn(process.execPath, [tscBinPath], {
-      stdio: "inherit",
-    });
-
-    child.on("exit", (code) => {
-      if (code === 0) {
-        resolve(undefined);
-        return;
-      }
-
-      reject(new Error(`tsc exited with code ${code}`));
-    });
-
-    child.on("error", reject);
-  });
+  await runCommand(tscBinPath, []);
+  await runCommand(viteBinPath, ["build", "--config", "vite.server.config.mjs"]);
 }
 
 runBuild().catch((error) => {
