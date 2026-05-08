@@ -2,3 +2,4 @@ node_modules
 dist
 cpp_libs
 cppkg.config.json
+server-ui/.next

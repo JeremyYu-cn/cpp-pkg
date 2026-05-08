@@ -675,7 +675,7 @@ test("update reuses a recorded branch and accepts Gitee selector variants", asyn
         [archiveURL]: archive,
       },
       async (mockAxios) => {
-        const { updateInstalledPackages } = require("../dist/tools/manage.js");
+        const { updateInstalledPackages } = require("../dist/tools/manage/index.js");
         const { readInstalledDependencies } = require("../dist/tools/deps.js");
 
         const result = await updateInstalledPackages("gitee.com/mirrors/branchlib");

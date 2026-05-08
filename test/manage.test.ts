@@ -11,7 +11,7 @@ const {
 const {
   removeInstalledPackage,
   updateInstalledPackages,
-} = require("../dist/tools/manage.js");
+} = require("../dist/tools/manage/index.js");
 
 const originalCwd = process.cwd();
 

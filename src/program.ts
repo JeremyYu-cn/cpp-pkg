@@ -15,6 +15,7 @@ import { registerInspectCommand } from "./commands/inspect";
 import { registerListCommand } from "./commands/list";
 import { registerRemoveCommand } from "./commands/remove";
 import { registerSearchCommand } from "./commands/search";
+import { registerServerCommand } from "./commands/server";
 import { registerStatusCommand } from "./commands/status";
 import { registerUpdateCommand } from "./commands/update";
 
@@ -53,6 +54,7 @@ export function createProgram(version = getPackageVersion()) {
   registerListCommand(program);
   registerRemoveCommand(program);
   registerSearchCommand(program);
+  registerServerCommand(program);
   registerStatusCommand(program);
   registerUpdateCommand(program);
   registerCacheCommand(program);

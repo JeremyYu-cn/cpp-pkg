@@ -112,6 +112,7 @@ const examplesByCommand: Record<string, string[]> = {
   list: ["cppkg-cli list"],
   remove: ["cppkg-cli remove json"],
   search: ["cppkg-cli search json", "cppkg-cli search http client --limit 20"],
+  server: ["cppkg-cli server", "cppkg-cli server --host 0.0.0.0 --port 4936"],
   status: ["cppkg-cli status"],
   update: ["cppkg-cli update", "cppkg-cli update fmt --tag 11.2.0"],
 };

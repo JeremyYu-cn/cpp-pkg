@@ -177,6 +177,19 @@ test("search help exposes result selection options", async () => {
   });
 });
 
+test("server help exposes web server options", async () => {
+  await withTempDir(async (cwd) => {
+    const result = runCli(["server", "--help"], cwd);
+
+    assert.equal(result.status, 0);
+    assert.match(result.stdout, /Start a local web server/);
+    assert.match(result.stdout, /--host <host>/);
+    assert.match(result.stdout, /--port <port>/);
+    assert.match(result.stdout, /--http-proxy <url>/);
+    assert.match(result.stdout, /--https-proxy <url>/);
+  });
+});
+
 test("get rejects using tag and branch together before network access", async () => {
   await withTempDir(async (cwd) => {
     const result = runCli(

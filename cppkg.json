@@ -1,0 +1,6 @@
+{
+  "dependencies": {
+    "json": "https://github.com/nlohmann/json",
+    "fmt": "https://github.com/fmtlib/fmt"
+  }
+}
