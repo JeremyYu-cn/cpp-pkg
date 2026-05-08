@@ -4,7 +4,7 @@
   <img src="./assets/icon.png" alt="cppkg-cli icon" width="128" height="128">
 </p>
 
-[Chinese](./zh-CN.html) | [Command reference](./commands.html)
+[Chinese](./zh-CN.html)
 
 `cppkg-cli` is a project-local C/C++ dependency downloader. It does not install libraries into system directories. Instead, it keeps downloaded dependencies inside the current project so the install layout can be committed, reproduced, inspected, and cleaned up.
 
@@ -15,7 +15,7 @@ There are two install outcomes:
 | Reusable headers | `cpp_libs/include/` | `nlohmann/json`, `fmt` |
 | Full source projects | `cpp_libs/projects/` | GUI libraries, SDKs, projects with `CMakeLists.txt` |
 
-For the full command list, options, and examples, use the [online command reference](./commands.html) or `cppkg-cli <command> --help`.
+For exact command options, run `cppkg-cli <command> --help`.
 
 ## Install
 
@@ -53,13 +53,12 @@ Start with the command that matches your workflow:
 
 | What you want | Command | Changes `cppkg.json` |
 | --- | --- | --- |
+| Try a package temporarily | `cppkg-cli get <url>` | No |
+| List installed packages | `cppkg-cli list` | No |
 | Add a long-term project dependency | `cppkg-cli add <source> --install` | Yes |
 | Install everything from `cppkg.json` | `cppkg-cli install` | No |
-| Try a package temporarily | `cppkg-cli get <url>` | No |
 | Search before you know the repository URL | `cppkg-cli search <keywords>` | No |
-| Check which includes are missing | `cppkg-cli inspect` | Only with `--add` |
 | Compile one or a few source files | `cppkg-cli compile <files...>` | No |
-| Build a CMake project | `cppkg-cli build` | No |
 
 For project dependencies, prefer `add` plus `install`. Use `get` for temporary experiments and validation.
 
@@ -340,8 +339,6 @@ cppkg-cli compile src/main.cpp --toolchain gcc-14 -o app
 cppkg-cli build --toolchain project-clang
 ```
 
-For all `compile`, `build`, and `compiler` options, see the [command reference](https://jeremyyu-cn.github.io/cppkg-cli/commands.html).
-
 ## Maintenance
 
 List installed packages:
@@ -585,26 +582,3 @@ cppkg-cli get https://github.com/nlohmann/json \
   --http-proxy http://127.0.0.1:7890 \
   --https-proxy http://127.0.0.1:7890
 ```
-
-## Command Index
-
-| Command | Purpose |
-| --- | --- |
-| `cppkg-cli init` | Create `./cppkg.json`. |
-| `cppkg-cli add <source>` | Add one dependency to `cppkg.json`, optionally installing it. |
-| `cppkg-cli install [selector...]` | Install all manifest dependencies, or selected manifest entries. |
-| `cppkg-cli get <source-url...>` | Directly install one or more sources without writing to the manifest. |
-| `cppkg-cli search <query...>` | Search GitHub for C/C++ libraries and optionally install one. |
-| `cppkg-cli inspect` | Scan C/C++ includes and report missing dependencies. |
-| `cppkg-cli compile <files...>` | Compile simple source files with cppkg include paths. |
-| `cppkg-cli build` | Configure and build a CMake project. |
-| `cppkg-cli compiler <subcommand>` | Manage compiler versions and Docker-backed compiler profiles. |
-| `cppkg-cli cmake` | Generate the `cppkg.cmake` integration helper. |
-| `cppkg-cli list` | Show installed packages recorded in `deps.json`. |
-| `cppkg-cli status` | Check manifest, lockfile, metadata, and installed files. |
-| `cppkg-cli update [selector]` | Update one installed package, or all packages when no selector is provided. |
-| `cppkg-cli remove <selector>` | Remove one installed package. |
-| `cppkg-cli cache <subcommand>` | List or clean downloaded archive cache. |
-| `cppkg-cli config <subcommand>` | Manage project-level defaults in `./cppkg.config.json`. |
-
-Every command supports `--help`.

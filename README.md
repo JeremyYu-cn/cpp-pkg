@@ -4,15 +4,14 @@
   <img src="./assets/icon.png" alt="cppkg-cli icon" width="128" height="128">
 </p>
 
-[Full guide](https://jeremyyu-cn.github.io/cppkg-cli/) | [Command reference](https://jeremyyu-cn.github.io/cppkg-cli/commands.html) | [中文](docs/README.zh-CN.md)
+[Full guide](https://jeremyyu-cn.github.io/cppkg-cli/) | [中文](docs/README.zh-CN.md)
 
 `cppkg-cli` downloads C/C++ dependencies into the current project. It keeps headers, source projects, cache files, lock data, and metadata under your workspace instead of installing libraries into system directories.
 
-Use the hosted guide for the full workflow, install-mode details, CMake integration, configuration, and command pages:
+Use the hosted guide for the full workflow, install-mode details, CMake integration, configuration, and command options:
 
 - [English guide](https://jeremyyu-cn.github.io/cppkg-cli/)
 - [Chinese guide](https://jeremyyu-cn.github.io/cppkg-cli/zh-CN.html)
-- [Command reference](https://jeremyyu-cn.github.io/cppkg-cli/commands.html)
 
 ## Quick Start
 
@@ -35,16 +34,13 @@ then `cppkg-cli compile` automatically adds the default `./cpp_libs/include` pat
 
 | Task | Command |
 | --- | --- |
-| Create a manifest | `cppkg-cli init` |
+| Try a package without changing the manifest | `cppkg-cli get https://github.com/fmtlib/fmt` |
+| List installed packages | `cppkg-cli list` |
 | Add and install a project dependency | `cppkg-cli add nlohmann/json --install` |
 | Install all manifest dependencies | `cppkg-cli install` |
-| Try a package without changing the manifest | `cppkg-cli get https://github.com/fmtlib/fmt` |
+| Create a manifest | `cppkg-cli init` |
 | Search for a package | `cppkg-cli search json` |
-| Inspect missing includes | `cppkg-cli inspect` |
 | Compile source files | `cppkg-cli compile src/main.cpp -o app` |
-| Build a CMake project | `cppkg-cli build --release` |
-| List installed packages | `cppkg-cli list` |
-| Check project state | `cppkg-cli status` |
 
 For command options, run:
 

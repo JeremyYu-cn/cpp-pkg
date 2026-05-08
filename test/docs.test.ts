@@ -17,7 +17,7 @@ function flattenCommands(commands: CommandDoc[]): CommandDoc[] {
   ]);
 }
 
-test("generated GitHub Pages command docs cover the CLI commands", async () => {
+test("generated command metadata covers the CLI commands", async () => {
   const contents = await fs.readFile(
     path.resolve("docs/commands.json"),
     "utf8",
@@ -75,10 +75,10 @@ test("generated GitHub Pages command docs cover the CLI commands", async () => {
 test("GitHub Pages static assets are present", async () => {
   for (const file of [
     "docs/.nojekyll",
-    "docs/app.js",
     "docs/assets/icon.png",
+    "docs/assets/main.css",
+    "docs/assets/main.js",
     "docs/index.html",
-    "docs/styles.css",
     "docs/zh-CN.html",
   ]) {
     await fs.access(path.resolve(file));

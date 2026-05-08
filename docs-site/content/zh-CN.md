@@ -4,7 +4,7 @@
   <img src="./assets/icon.png" alt="cppkg-cli icon" width="128" height="128">
 </p>
 
-[English](./index.html) | [在线命令参考](./commands.zh-CN.html)
+[English](./index.html)
 
 `cppkg-cli` 是一个项目本地的 C/C++ 依赖下载工具。它不会把库安装到系统目录，而是把依赖放在当前项目下，方便提交配置、复现安装结果和清理依赖。
 
@@ -15,7 +15,7 @@
 | 可直接 include 的头文件 | `cpp_libs/include/` | `nlohmann/json`、`fmt` |
 | 需要完整源码树的项目 | `cpp_libs/projects/` | GUI 库、SDK、带 CMakeLists 的源码包 |
 
-完整命令、参数和示例以 [在线命令参考](./commands.zh-CN.html) 或 `cppkg-cli <command> --help` 为准。
+具体命令参数以 `cppkg-cli <command> --help` 为准。
 
 ## 安装
 
@@ -53,13 +53,12 @@ cppkg-cli compile src/main.cpp -o app
 
 | 你要做什么 | 用哪个命令 | 会不会改 `cppkg.json` |
 | --- | --- | --- |
+| 只临时试用一个包 | `cppkg-cli get <url>` | 不会 |
+| 查看已安装包 | `cppkg-cli list` | 不会 |
 | 给项目新增一个长期依赖 | `cppkg-cli add <source> --install` | 会 |
 | 安装 `cppkg.json` 里的全部依赖 | `cppkg-cli install` | 不会 |
-| 只临时试用一个包 | `cppkg-cli get <url>` | 不会 |
 | 不知道仓库地址，先搜索 | `cppkg-cli search <keywords>` | 不会 |
-| 检查源码里缺哪些 include | `cppkg-cli inspect` | 只有加 `--add` 才会 |
 | 编译单个或少量源码文件 | `cppkg-cli compile <files...>` | 不会 |
-| 构建 CMake 项目 | `cppkg-cli build` | 不会 |
 
 项目依赖推荐走 `add` + `install`。`get` 更适合临时下载和验证，不适合作为团队项目的长期依赖入口。
 
@@ -340,8 +339,6 @@ cppkg-cli compile src/main.cpp --toolchain gcc-14 -o app
 cppkg-cli build --toolchain project-clang
 ```
 
-更多 `compile`、`build` 和 `compiler` 参数见 [中文命令参考](https://jeremyyu-cn.github.io/cppkg-cli/commands.zh-CN.html)。
-
 ## 日常维护
 
 查看已安装包：
@@ -585,26 +582,3 @@ cppkg-cli get https://github.com/nlohmann/json \
   --http-proxy http://127.0.0.1:7890 \
   --https-proxy http://127.0.0.1:7890
 ```
-
-## 命令索引
-
-| 命令 | 作用 |
-| --- | --- |
-| `cppkg-cli init` | 创建 `./cppkg.json`。 |
-| `cppkg-cli add <source>` | 添加一个依赖到 `cppkg.json`，可选立即安装。 |
-| `cppkg-cli install [selector...]` | 安装全部 manifest 依赖，或只安装选中的 manifest 条目。 |
-| `cppkg-cli get <source-url...>` | 直接安装一个或多个来源，不写入 manifest。 |
-| `cppkg-cli search <query...>` | 在 GitHub 上搜索 C/C++ 库，并可选择安装。 |
-| `cppkg-cli inspect` | 扫描 C/C++ include 并报告缺失依赖。 |
-| `cppkg-cli compile <files...>` | 使用 cppkg include 路径编译简单源码文件。 |
-| `cppkg-cli build` | 配置并构建 CMake 项目。 |
-| `cppkg-cli compiler <subcommand>` | 管理编译器版本和 Docker 编译器 profile。 |
-| `cppkg-cli cmake` | 生成 `cppkg.cmake` 集成辅助文件。 |
-| `cppkg-cli list` | 查看 `deps.json` 中记录的已安装包。 |
-| `cppkg-cli status` | 检查 manifest、锁文件、元数据和已安装文件。 |
-| `cppkg-cli update [selector]` | 更新一个已安装包；不传 selector 时更新全部包。 |
-| `cppkg-cli remove <selector>` | 删除一个已安装包。 |
-| `cppkg-cli cache <subcommand>` | 查看或清理下载归档缓存。 |
-| `cppkg-cli config <subcommand>` | 管理 `./cppkg.config.json` 中的项目级默认配置。 |
-
-每个命令都可以加 `--help` 查看当前支持的选项。
