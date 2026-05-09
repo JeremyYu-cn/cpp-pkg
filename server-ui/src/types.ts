@@ -52,6 +52,45 @@ export type ServerState = {
   packageRoot: string;
 };
 
+export type PackageTaskStatus =
+  | "canceled"
+  | "failed"
+  | "queued"
+  | "running"
+  | "succeeded";
+
+export type PackageTaskLog = {
+  id: number;
+  message: string;
+  stream: "stderr" | "stdout";
+  timestamp: string;
+};
+
+export type PackageTask = {
+  createdAt: string;
+  error?: string;
+  finishedAt?: string;
+  id: string;
+  label: string;
+  logs: PackageTaskLog[];
+  result?: ServerState;
+  startedAt?: string;
+  status: PackageTaskStatus;
+  type: string;
+};
+
+export type ConfigEntry = {
+  key: string;
+  secret: boolean;
+  source: "default" | "user";
+  value: string;
+};
+
+export type ConfigState = {
+  configFilePath: string;
+  entries: ConfigEntry[];
+};
+
 export type SearchResult = {
   defaultBranch: string | null;
   description: string;
@@ -87,4 +126,17 @@ export type SearchValues = {
   language: string;
   limit: number;
   query: string;
+};
+
+export type ConfigFormValues = {
+  key: string;
+  value: string;
+};
+
+export type SourceFormSuggestion = {
+  branch?: string;
+  kind: "archive-url" | "gitee-repository" | "github-repository";
+  name: string;
+  source: string;
+  tag?: string;
 };

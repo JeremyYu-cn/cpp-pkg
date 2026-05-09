@@ -58,9 +58,46 @@ Start with the command that matches your workflow:
 | Add a long-term project dependency | `cppkg-cli add <source> --install` | Yes |
 | Install everything from `cppkg.json` | `cppkg-cli install` | No |
 | Search before you know the repository URL | `cppkg-cli search <keywords>` | No |
+| Manage packages in a browser | `cppkg-cli server` | Optional |
 | Compile one or a few source files | `cppkg-cli compile <files...>` | No |
 
 For project dependencies, prefer `add` plus `install`. Use `get` for temporary experiments and validation.
+
+## Browser Web Server
+
+Start the local package manager when you want to browse packages, edit config, and watch install logs from a web page:
+
+```bash
+cppkg-cli server
+```
+
+By default, the server binds to `127.0.0.1:4936` and prints the URL to open. Pick another port or bind interface when needed:
+
+```bash
+cppkg-cli server --port 0
+cppkg-cli server --host 0.0.0.0 --port 4936
+```
+
+The web UI includes:
+
+| Tab | What it does |
+| --- | --- |
+| Installed packages | Shows installed package metadata from `cpp_libs/deps.json`. |
+| Search and download | Searches GitHub repositories and queues downloads or manifest installs. |
+| Direct download | Accepts repository URLs, `owner/repo`, Gitee URLs, and zip URLs. Pasting a GitHub/Gitee release or branch URL fills the package name plus `tag` or `branch`. |
+| Manifest | Shows dependencies from `cppkg.json` and any manifest parse error. |
+| Config | Reads and writes `cppkg.config.json`; token values are redacted in the browser. |
+| Tasks | Shows queued/running/completed tasks with live logs and lets you cancel queued work. |
+
+Download and manifest actions run as background tasks, so the page can keep showing progress while a package is being resolved, downloaded, extracted, and recorded.
+
+When developing this repository, use the Vite-powered web UI:
+
+```bash
+npm run server:web:dev
+```
+
+That script starts the cppkg API server and the Vite UI together. If the default API port is busy, it chooses another local port and wires the Vite `/api` proxy to it.
 
 ## Where Files Go
 

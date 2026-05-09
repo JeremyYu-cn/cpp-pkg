@@ -34,9 +34,7 @@ async function sendStaticFile(res: ServerResponse, filePath: string) {
     "application/octet-stream";
 
   res.writeHead(200, {
-    "cache-control": filePath.endsWith("index.html")
-      ? "no-store"
-      : "public, max-age=3600",
+    "cache-control": "no-store",
     "content-length": content.byteLength,
     "content-type": contentType,
   });

@@ -1,5 +1,7 @@
+import { useRef, useState } from "react";
 import { Button, Checkbox, Form, Input, Select, Space } from "antd";
 import { DownloadOutlined } from "@ant-design/icons";
+import { inferPackageSource } from "../api";
 import { VERSION_POLICIES } from "../constants";
 import type { PackageActionValues } from "../types";
 
@@ -13,6 +15,46 @@ export default function DirectDownload({
   onSubmit,
 }: DirectDownloadProps) {
   const [form] = Form.useForm<PackageActionValues>();
+  const [inferringSource, setInferringSource] = useState(false);
+  const latestInferenceId = useRef(0);
+  const lastInferredSource = useRef("");
+
+  const inferSourceFields = async (source: string, force = false) => {
+    const rawSource = source.trim();
+
+    if (!rawSource || (!force && rawSource === lastInferredSource.current)) {
+      return;
+    }
+
+    const inferenceId = latestInferenceId.current + 1;
+
+    latestInferenceId.current = inferenceId;
+    setInferringSource(true);
+
+    try {
+      const suggestion = await inferPackageSource(rawSource);
+
+      if (inferenceId !== latestInferenceId.current) {
+        return;
+      }
+
+      lastInferredSource.current = rawSource;
+      form.setFieldValue("source", suggestion.source);
+      form.setFieldValue("name", suggestion.name);
+      form.setFieldValue("tag", suggestion.tag);
+      form.setFieldValue("branch", suggestion.branch);
+      form.setFieldValue("versionRange", undefined);
+      form.setFieldValue("versionPolicy", undefined);
+    } catch {
+      if (inferenceId === latestInferenceId.current) {
+        lastInferredSource.current = "";
+      }
+    } finally {
+      if (inferenceId === latestInferenceId.current) {
+        setInferringSource(false);
+      }
+    }
+  };
 
   return (
     <section className="tool-panel">
@@ -32,7 +74,17 @@ export default function DirectDownload({
             name="source"
             rules={[{ message: "Enter a package source", required: true }]}
           >
-            <Input placeholder="github.com/fmtlib/fmt or https://github.com/fmtlib/fmt" />
+            <Input
+              onBlur={(event) => void inferSourceFields(event.target.value)}
+              onPaste={(event) =>
+                void inferSourceFields(
+                  event.clipboardData.getData("text"),
+                  true,
+                )
+              }
+              placeholder="github.com/fmtlib/fmt or https://github.com/fmtlib/fmt"
+              suffix={inferringSource ? "..." : undefined}
+            />
           </Form.Item>
           <Form.Item label="Manifest name" name="name">
             <Input placeholder="fmt" />

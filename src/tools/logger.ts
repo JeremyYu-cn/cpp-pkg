@@ -1,10 +1,18 @@
 import pc from "picocolors";
+import { AsyncLocalStorage } from "node:async_hooks";
 
 type TableRow = Record<string, unknown>;
 type WritableStream = NodeJS.WriteStream;
+type LoggerSink = (line: string, stream: "stderr" | "stdout") => void;
+
+const loggerSinkStorage = new AsyncLocalStorage<LoggerSink>();
 
 function writeLine(message = "", stream: WritableStream = process.stdout) {
-  stream.write(`${message}\n`);
+  const line = String(message);
+  const sink = loggerSinkStorage.getStore();
+
+  sink?.(line, stream === process.stderr ? "stderr" : "stdout");
+  stream.write(`${line}\n`);
 }
 
 function formatTag(label: string, color: (value: string) => string) {
@@ -90,3 +98,10 @@ export const logger = {
     }
   },
 };
+
+export function withLoggerSink<T>(
+  sink: LoggerSink,
+  operation: () => Promise<T>,
+) {
+  return loggerSinkStorage.run(sink, operation);
+}
