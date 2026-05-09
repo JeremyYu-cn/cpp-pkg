@@ -40,6 +40,7 @@ then `cppkg-cli compile` automatically adds the default `./cpp_libs/include` pat
 | Install all manifest dependencies | `cppkg-cli install` |
 | Create a manifest | `cppkg-cli init` |
 | Search for a package | `cppkg-cli search json` |
+| Open the browser package manager | `cppkg-cli server` |
 | Compile source files | `cppkg-cli compile src/main.cpp -o app` |
 
 For command options, run:

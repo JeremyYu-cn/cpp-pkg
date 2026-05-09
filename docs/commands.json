@@ -1302,7 +1302,7 @@
           "command": "cppkg-cli config get",
           "description": "Print one resolved config value",
           "examples": [
-            "cppkg-cli config get installDir"
+            "cppkg-cli config get packageRootDir"
           ],
           "name": "get",
           "options": [],
@@ -1330,7 +1330,7 @@
           "command": "cppkg-cli config set",
           "description": "Persist one config override into ./cppkg.config.json",
           "examples": [
-            "cppkg-cli config set installDir vendor/cpp_libs"
+            "cppkg-cli config set packageRootDir vendor/cpp_libs"
           ],
           "name": "set",
           "options": [],
@@ -1367,7 +1367,7 @@
           "command": "cppkg-cli config remove",
           "description": "Remove one config override and fall back to the default value",
           "examples": [
-            "cppkg-cli config remove cacheDir"
+            "cppkg-cli config remove cacheDirName"
           ],
           "name": "remove",
           "options": [],
@@ -1380,7 +1380,7 @@
       "description": "Manage project-level cppkg settings in ./cppkg.config.json",
       "examples": [
         "cppkg-cli config list",
-        "cppkg-cli config set cacheDir cpp_libs/cache"
+        "cppkg-cli config set cacheDirName cache"
       ],
       "name": "config",
       "options": [],

@@ -22,7 +22,7 @@
     "docs:site:preview": "vite preview --config vite.docs.config.mjs",
     "dev": "node --import=tsx ./src/main.ts",
     "server:web:build": "vite build --config vite.server.config.mjs",
-    "server:web:dev": "vite --config vite.server.config.mjs",
+    "server:web:dev": "node ./scripts/server-web-dev.mjs",
     "server:web:next": "next dev ./server-ui",
     "prepack": "npm test",
     "pretest": "npm run build",

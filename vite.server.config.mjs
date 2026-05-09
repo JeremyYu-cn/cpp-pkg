@@ -4,6 +4,8 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const rootDir = path.dirname(fileURLToPath(import.meta.url));
+const apiProxyTarget =
+  process.env.CPPKG_SERVER_API_URL || "http://127.0.0.1:4936";
 
 export default defineConfig({
   base: "./",
@@ -18,5 +20,8 @@ export default defineConfig({
   },
   server: {
     host: "127.0.0.1",
+    proxy: {
+      "/api": apiProxyTarget,
+    },
   },
 });

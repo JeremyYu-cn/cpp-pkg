@@ -58,9 +58,46 @@ cppkg-cli compile src/main.cpp -o app
 | 给项目新增一个长期依赖 | `cppkg-cli add <source> --install` | 会 |
 | 安装 `cppkg.json` 里的全部依赖 | `cppkg-cli install` | 不会 |
 | 不知道仓库地址，先搜索 | `cppkg-cli search <keywords>` | 不会 |
+| 在浏览器里管理包 | `cppkg-cli server` | 可选 |
 | 编译单个或少量源码文件 | `cppkg-cli compile <files...>` | 不会 |
 
 项目依赖推荐走 `add` + `install`。`get` 更适合临时下载和验证，不适合作为团队项目的长期依赖入口。
+
+## 浏览器 Web Server
+
+需要在网页里浏览包、编辑配置、查看安装日志时，启动本地包管理页面：
+
+```bash
+cppkg-cli server
+```
+
+默认绑定到 `127.0.0.1:4936`，启动后会打印可打开的 URL。需要换端口或监听地址时：
+
+```bash
+cppkg-cli server --port 0
+cppkg-cli server --host 0.0.0.0 --port 4936
+```
+
+Web UI 包含这些页签：
+
+| 页签 | 作用 |
+| --- | --- |
+| Installed packages | 从 `cpp_libs/deps.json` 查看已安装包元数据。 |
+| Search and download | 搜索 GitHub 仓库，并把下载或写入 manifest 后安装加入任务队列。 |
+| Direct download | 支持仓库 URL、`owner/repo`、Gitee URL 和 zip URL。粘贴 GitHub/Gitee release 或 branch 地址时，会自动填写包名以及 `tag` 或 `branch`。 |
+| Manifest | 查看 `cppkg.json` 里的依赖和 manifest 解析错误。 |
+| Config | 读取和写入 `cppkg.config.json`；token 会在浏览器里脱敏显示。 |
+| Tasks | 查看排队、运行中和已完成任务的实时日志，并可取消还在排队的任务。 |
+
+下载和 manifest 操作都会作为后台任务执行，所以页面可以持续显示解析、下载、解压和记录元数据的进度。
+
+开发这个仓库里的 Web UI 时，使用 Vite 版本：
+
+```bash
+npm run server:web:dev
+```
+
+这个脚本会同时启动 cppkg API server 和 Vite UI。如果默认 API 端口被占用，它会自动选择另一个本地端口，并把 Vite 的 `/api` 代理指到该端口。
 
 ## 文件放在哪里
 

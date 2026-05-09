@@ -40,6 +40,7 @@ cppkg-cli compile src/main.cpp -o app
 | 安装 manifest 里的全部依赖 | `cppkg-cli install` |
 | 创建 manifest | `cppkg-cli init` |
 | 搜索包 | `cppkg-cli search json` |
+| 打开浏览器包管理页面 | `cppkg-cli server` |
 | 编译源码文件 | `cppkg-cli compile src/main.cpp -o app` |
 
 查看命令参数：

@@ -2,8 +2,13 @@ import type {
   PackageActionValues,
   SearchResult,
   SearchValues,
-  ServerState,
+  SourceFormSuggestion,
 } from "./types";
+import {
+  normalizeConfigState,
+  normalizePackageTask,
+  normalizeServerState,
+} from "./state";
 
 async function requestJson<T>(url: string, init?: RequestInit): Promise<T> {
   const response = await fetch(url, init);
@@ -68,7 +73,41 @@ function buildPackagePayload(values: PackageActionValues, source?: string) {
 }
 
 export function fetchPackages() {
-  return requestJson<ServerState>("/api/packages");
+  return requestJson<unknown>("/api/packages").then(normalizeServerState);
+}
+
+export async function fetchTasks() {
+  const payload = await requestJson<{ tasks?: unknown[] }>("/api/tasks");
+
+  return (payload.tasks ?? []).flatMap((task) => {
+    const normalized = normalizePackageTask(task);
+
+    return normalized ? [normalized] : [];
+  });
+}
+
+export function fetchConfig() {
+  return requestJson<unknown>("/api/config").then(normalizeConfigState);
+}
+
+export function setConfigEntry(key: string, value: string) {
+  return requestJson<unknown>("/api/config/set", {
+    body: JSON.stringify({ key, value }),
+    headers: {
+      "content-type": "application/json",
+    },
+    method: "POST",
+  }).then(normalizeConfigState);
+}
+
+export function removeConfigEntry(key: string) {
+  return requestJson<unknown>("/api/config/remove", {
+    body: JSON.stringify({ key }),
+    headers: {
+      "content-type": "application/json",
+    },
+    method: "POST",
+  }).then(normalizeConfigState);
 }
 
 export async function searchPackages(values: SearchValues) {
@@ -84,14 +123,59 @@ export async function searchPackages(values: SearchValues) {
   return payload.results;
 }
 
+export function inferPackageSource(source: string) {
+  return requestJson<{ suggestion?: SourceFormSuggestion }>(
+    "/api/source/infer",
+    {
+      body: JSON.stringify({ source }),
+      headers: {
+        "content-type": "application/json",
+      },
+      method: "POST",
+    },
+  ).then(({ suggestion }) => {
+    if (!suggestion) {
+      throw new Error("Source suggestion response is invalid.");
+    }
+
+    return suggestion;
+  });
+}
+
 export function runPackageAction(values: PackageActionValues, source?: string) {
   const endpoint = values.addToManifest ? "/api/manifest/add" : "/api/download";
 
-  return requestJson<ServerState>(endpoint, {
+  return requestJson<{ task: unknown }>(endpoint, {
     body: JSON.stringify(buildPackagePayload(values, source)),
     headers: {
       "content-type": "application/json",
     },
     method: "POST",
+  }).then(({ task }) => {
+    const normalized = normalizePackageTask(task);
+
+    if (!normalized) {
+      throw new Error("Task response is invalid.");
+    }
+
+    return { task: normalized };
+  });
+}
+
+export function cancelTask(id: string) {
+  return requestJson<{ task: unknown }>("/api/tasks/cancel", {
+    body: JSON.stringify({ id }),
+    headers: {
+      "content-type": "application/json",
+    },
+    method: "POST",
+  }).then(({ task }) => {
+    const normalized = normalizePackageTask(task);
+
+    if (!normalized) {
+      throw new Error("Task response is invalid.");
+    }
+
+    return { task: normalized };
   });
 }
