@@ -7,6 +7,7 @@ import type {
 import {
   normalizeConfigState,
   normalizePackageTask,
+  normalizeProjectStatus,
   normalizeServerState,
 } from "./state";
 
@@ -88,6 +89,10 @@ export async function fetchTasks() {
 
 export function fetchConfig() {
   return requestJson<unknown>("/api/config").then(normalizeConfigState);
+}
+
+export function fetchProjectStatus() {
+  return requestJson<unknown>("/api/status").then(normalizeProjectStatus);
 }
 
 export function setConfigEntry(key: string, value: string) {

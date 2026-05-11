@@ -6,6 +6,7 @@ import { handleConfigRequest } from "./config";
 import { HttpError } from "./errors";
 import { readJsonBody, sendJson } from "./response";
 import { handleSourceRequest } from "./sources";
+import { handleStatusRequest } from "./status";
 import { readServerState } from "./state";
 import { handleTaskEvents } from "./taskEvents";
 import {
@@ -36,6 +37,11 @@ export async function handleApiRequest(
 
   if (requestUrl.pathname === "/api/source" || requestUrl.pathname.startsWith("/api/source/")) {
     await handleSourceRequest(req, res, requestUrl);
+    return;
+  }
+
+  if (requestUrl.pathname === "/api/status" || requestUrl.pathname.startsWith("/api/status/")) {
+    await handleStatusRequest(req, res, requestUrl);
     return;
   }
 

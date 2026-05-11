@@ -91,6 +91,17 @@ export type ConfigState = {
   entries: ConfigEntry[];
 };
 
+export type ProjectStatusIssue = {
+  code: string;
+  message: string;
+  packageName: string;
+  severity: "error" | "warn";
+};
+
+export type ProjectStatus = {
+  issues: ProjectStatusIssue[];
+};
+
 export type SearchResult = {
   defaultBranch: string | null;
   description: string;

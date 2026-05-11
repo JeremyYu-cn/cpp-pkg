@@ -1,5 +1,12 @@
 import { DEFAULT_CONFIG_STATE, DEFAULT_STATE } from "./constants";
-import type { ConfigEntry, ConfigState, PackageTask, ServerState } from "./types";
+import type {
+  ConfigEntry,
+  ConfigState,
+  PackageTask,
+  ProjectStatus,
+  ProjectStatusIssue,
+  ServerState,
+} from "./types";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -92,6 +99,37 @@ export function normalizeConfigState(value: unknown): ConfigState {
     entries: Array.isArray(record.entries)
       ? record.entries.flatMap((entry) => {
         const normalized = normalizeConfigEntry(entry);
+
+        return normalized ? [normalized] : [];
+      })
+      : [],
+  };
+}
+
+function normalizeProjectStatusIssue(value: unknown): ProjectStatusIssue | null {
+  if (!isRecord(value)) {
+    return null;
+  }
+
+  const severity = value.severity === "error" ? "error" : "warn";
+
+  return {
+    code: typeof value.code === "string" ? value.code : "unknown",
+    message: typeof value.message === "string" ? value.message : "",
+    packageName: typeof value.packageName === "string"
+      ? value.packageName
+      : "",
+    severity,
+  };
+}
+
+export function normalizeProjectStatus(value: unknown): ProjectStatus {
+  const record = isRecord(value) ? value : {};
+
+  return {
+    issues: Array.isArray(record.issues)
+      ? record.issues.flatMap((issue) => {
+        const normalized = normalizeProjectStatusIssue(issue);
 
         return normalized ? [normalized] : [];
       })

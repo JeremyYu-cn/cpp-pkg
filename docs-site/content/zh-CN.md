@@ -86,6 +86,7 @@ Web UI 包含这些页签：
 | Search and download | 搜索 GitHub 仓库，并把下载或写入 manifest 后安装加入任务队列。 |
 | Direct download | 支持仓库 URL、`owner/repo`、Gitee URL 和 zip URL。粘贴 GitHub/Gitee release 或 branch 地址时，会自动填写包名以及 `tag` 或 `branch`。 |
 | Manifest | 查看 `cppkg.json` 里的依赖和 manifest 解析错误。 |
+| Status | 检查 manifest、锁文件、已安装元数据和已跟踪文件，展示项目健康问题。 |
 | Config | 读取和写入 `cppkg.config.json`；token 会在浏览器里脱敏显示。 |
 | Tasks | 查看排队、运行中和已完成任务的实时日志，并可取消还在排队的任务。 |
 

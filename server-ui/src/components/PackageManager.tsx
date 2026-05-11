@@ -23,6 +23,7 @@ import DirectDownload from "./DirectDownload";
 import InstalledPackagesTable from "./InstalledPackagesTable";
 import ManifestTable from "./ManifestTable";
 import SearchPackages from "./SearchPackages";
+import StatusPanel from "./StatusPanel";
 import SummaryGrid from "./SummaryGrid";
 import TaskPanel from "./TaskPanel";
 
@@ -144,6 +145,11 @@ export default function PackageManager() {
               ),
               key: "manifest",
               label: "Manifest",
+            },
+            {
+              children: <StatusPanel />,
+              key: "status",
+              label: "Status",
             },
             {
               children: <ConfigPanel onChanged={() => void loadPackages()} />,

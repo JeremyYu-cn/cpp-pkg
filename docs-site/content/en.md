@@ -86,6 +86,7 @@ The web UI includes:
 | Search and download | Searches GitHub repositories and queues downloads or manifest installs. |
 | Direct download | Accepts repository URLs, `owner/repo`, Gitee URLs, and zip URLs. Pasting a GitHub/Gitee release or branch URL fills the package name plus `tag` or `branch`. |
 | Manifest | Shows dependencies from `cppkg.json` and any manifest parse error. |
+| Status | Checks manifest, lockfile, installed metadata, and tracked files for project health issues. |
 | Config | Reads and writes `cppkg.config.json`; token values are redacted in the browser. |
 | Tasks | Shows queued/running/completed tasks with live logs and lets you cancel queued work. |
 

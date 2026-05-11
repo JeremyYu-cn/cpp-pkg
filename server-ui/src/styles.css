@@ -162,6 +162,24 @@ body {
   overflow-wrap: anywhere;
 }
 
+.status-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.status-summary {
+  min-width: 0;
+  flex-wrap: wrap;
+}
+
+.status-clean-icon {
+  color: #16a34a;
+  font-size: 58px;
+}
+
 .ant-tabs-nav {
   margin-bottom: 14px;
 }
@@ -251,6 +269,11 @@ body {
 
   .config-toolbar {
     align-items: flex-start;
+  }
+
+  .status-toolbar {
+    align-items: flex-start;
+    flex-direction: column;
   }
 
   .config-form .ant-form-item {
