@@ -354,10 +354,15 @@ export async function prepareArchive(
   await fsp.rm(extractPath, { force: true, recursive: true });
 
   logger.info(
-    archive.kind === "github-release" || archive.kind === "gitee-release"
+    archive.kind === "github-release" ||
+    archive.kind === "gitee-release" ||
+    archive.kind === "gitlab-release" ||
+    archive.kind === "bitbucket-release"
       ? `Trying release archive ${archive.label}`
       : archive.kind === "github-repository" ||
-          archive.kind === "gitee-repository"
+          archive.kind === "gitee-repository" ||
+          archive.kind === "gitlab-repository" ||
+          archive.kind === "bitbucket-repository"
         ? `Trying repository archive ${archive.label}`
         : `Trying archive URL ${archive.label}`,
   );

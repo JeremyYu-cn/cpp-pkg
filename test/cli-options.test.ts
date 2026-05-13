@@ -215,7 +215,7 @@ test("get rejects tag and branch options for direct archive URLs", async () => {
     assert.equal(result.status, 1);
     assert.match(
       result.stderr,
-      /Options --tag and --branch can only be used with GitHub or Gitee repository URLs/,
+      /Options --tag and --branch can only be used with GitHub.*repository URLs/,
     );
   });
 });

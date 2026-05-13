@@ -11,7 +11,7 @@ function normalizeLooseSourceInput(input: string) {
   try {
     return new URL(source).toString();
   } catch {
-    if (/^(?:www\.)?(?:github|gitee)\.com\//i.test(source)) {
+    if (/^(?:www\.)?(?:github|gitee|gitlab|bitbucket)\.com\//i.test(source)) {
       return new URL(`https://${source}`).toString();
     }
 
@@ -20,7 +20,7 @@ function normalizeLooseSourceInput(input: string) {
     }
 
     throw new Error(
-      "source must be a URL, github.com/owner/repo, gitee.com/owner/repo, or owner/repo.",
+      "source must be a URL, github.com/owner/repo, gitee.com/owner/repo, gitlab.com/owner/repo, bitbucket.org/owner/repo, or owner/repo.",
     );
   }
 }
@@ -103,6 +103,14 @@ function buildGiteeURL(owner: string, repoName: string) {
   return `https://gitee.com/${owner}/${removeGitSuffix(repoName)}.git`;
 }
 
+function buildGitLabURL(owner: string, repoName: string) {
+  return `https://gitlab.com/${owner}/${removeGitSuffix(repoName)}`;
+}
+
+function buildBitbucketURL(owner: string, repoName: string) {
+  return `https://bitbucket.org/${owner}/${removeGitSuffix(repoName)}`;
+}
+
 function inferGitHubRepository(url: URL) {
   const parts = readPathParts(url);
 
@@ -176,11 +184,53 @@ function inferCodeloadGitHubRepository(url: URL) {
   };
 }
 
+function inferGitLabRepository(url: URL) {
+  const parts = readPathParts(url);
+
+  if (!["gitlab.com", "www.gitlab.com"].includes(url.hostname)) {
+    return null;
+  }
+
+  if (parts.length < 2) {
+    return null;
+  }
+
+  const owner = parts[0]!;
+  const repoName = parts[1]!;
+
+  return {
+    source: buildGitLabURL(owner, repoName),
+    versionSelection: inferVersionSelection(parts.slice(2)),
+  };
+}
+
+function inferBitbucketRepository(url: URL) {
+  const parts = readPathParts(url);
+
+  if (!["bitbucket.org", "www.bitbucket.org"].includes(url.hostname)) {
+    return null;
+  }
+
+  if (parts.length < 2) {
+    return null;
+  }
+
+  const owner = parts[0]!;
+  const repoName = parts[1]!;
+
+  return {
+    source: buildBitbucketURL(owner, repoName),
+    versionSelection: inferVersionSelection(parts.slice(2)),
+  };
+}
+
 function inferRepositorySource(url: URL) {
   return (
     inferGitHubRepository(url) ||
     inferGiteeRepository(url) ||
-    inferCodeloadGitHubRepository(url)
+    inferCodeloadGitHubRepository(url) ||
+    inferGitLabRepository(url) ||
+    inferBitbucketRepository(url)
   );
 }
 

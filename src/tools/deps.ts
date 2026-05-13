@@ -7,6 +7,7 @@ import path from "node:path";
 import { getDefaultInstallTarget } from "../public/config";
 import { getDepsFilePath } from "../public/packagePath";
 import { writePackageLockFromDependencies } from "./lockfile";
+import { logger } from "./logger";
 
 const EMPTY_DEPENDENCIES_FILE: InstalledDependenciesFile = {
   dependencies: [],
@@ -188,5 +189,46 @@ export async function upsertInstalledDependency(
     dependencies.push(normalizeInstalledDependency(dependency));
 
     await writeInstalledDependencies(dependencies);
+  });
+}
+
+function normalizeUrl(url: string) {
+  return url.trim().replace(/\/+$/, "").replace(/\.git$/i, "").toLowerCase();
+}
+
+/**
+ * Updates the transitiveDeps field on installed dependency records
+ * based on the resolved parent-child relationship map.
+ */
+export async function upsertDependencyTransitiveDeps(
+  relations: Map<string, string[]>,
+) {
+  return queueDependencyMetadataUpdate(async () => {
+    const installed = await readInstalledDependencies();
+    let updatedCount = 0;
+
+    for (const dependency of installed.dependencies) {
+      const depUrl = normalizeUrl(dependency.repository.url);
+      const transitiveDeps = relations.get(depUrl);
+
+      if (transitiveDeps && transitiveDeps.length) {
+        const uniqueDeps = [...new Set(transitiveDeps)];
+
+        if (
+          !dependency.transitiveDeps ||
+          dependency.transitiveDeps.length !== uniqueDeps.length ||
+          !uniqueDeps.every((d) => dependency.transitiveDeps!.includes(d))
+        ) {
+          dependency.transitiveDeps = uniqueDeps;
+          updatedCount++;
+        }
+      }
+    }
+
+    if (updatedCount > 0) {
+      await writeInstalledDependencies(installed.dependencies);
+    }
+
+    return updatedCount;
   });
 }

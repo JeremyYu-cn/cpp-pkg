@@ -65,6 +65,11 @@ const examplesByCommand: Record<string, string[]> = {
   add: [
     "cppkg-cli add nlohmann/json",
     "cppkg-cli add fmtlib/fmt --name fmt --tag 11.2.0 --install",
+    "cppkg-cli add nlohmann/json --dry-run",
+  ],
+  audit: [
+    "cppkg-cli audit",
+    "cppkg-cli audit --level high --fix",
   ],
   build: [
     "cppkg-cli build --release",
@@ -102,19 +107,50 @@ const examplesByCommand: Record<string, string[]> = {
   "config list": ["cppkg-cli config list"],
   "config remove": ["cppkg-cli config remove cacheDirName"],
   "config set": ["cppkg-cli config set packageRootDir vendor/cpp_libs"],
+  create: [
+    "cppkg-cli create my-lib",
+    "cppkg-cli create my-lib --header-only --c --output ./libs/my-lib",
+  ],
   get: [
     "cppkg-cli get https://github.com/nlohmann/json",
     "cppkg-cli get https://github.com/fmtlib/fmt --version-range '^11.0.0'",
+    "cppkg-cli get https://gitlab.com/libname/lib --binary linux/x64",
   ],
-  init: ["cppkg-cli init", "cppkg-cli init --force"],
+  import: [
+    "cppkg-cli import vcpkg.json",
+    "cppkg-cli import conanfile.txt --dry-run",
+    "cppkg-cli import vcpkg.json --replace",
+  ],
+  init: ["cppkg-cli init", "cppkg-cli init --force", "cppkg-cli init --workspace"],
   inspect: ["cppkg-cli inspect", "cppkg-cli inspect --add --install"],
-  install: ["cppkg-cli install", "cppkg-cli install json fmt --frozen-lockfile"],
-  list: ["cppkg-cli list"],
-  remove: ["cppkg-cli remove json"],
+  install: [
+    "cppkg-cli install",
+    "cppkg-cli install json fmt --frozen-lockfile",
+    "cppkg-cli install --workspace --no-transitive",
+  ],
+  integrate: [
+    "cppkg-cli integrate",
+    "cppkg-cli integrate --dry-run",
+    "cppkg-cli integrate --target my-app",
+  ],
+  list: ["cppkg-cli list", "cppkg-cli list --tree"],
+  publish: [
+    "cppkg-cli publish",
+    "cppkg-cli publish --tag v2.0.0 --name 'Version 2.0'",
+  ],
+  remove: ["cppkg-cli remove json", "cppkg-cli remove json --dry-run"],
   search: ["cppkg-cli search json", "cppkg-cli search http client --limit 20"],
   server: ["cppkg-cli server", "cppkg-cli server --host 0.0.0.0 --port 4936"],
   status: ["cppkg-cli status"],
   update: ["cppkg-cli update", "cppkg-cli update fmt --tag 11.2.0"],
+  vendor: [
+    "cppkg-cli vendor",
+    "cppkg-cli vendor --output ./third_party --remove-originals",
+  ],
+  why: [
+    "cppkg-cli why fmt",
+    "cppkg-cli why nlohmann/json",
+  ],
 };
 
 function getCommandSegments(command: CommandLike) {

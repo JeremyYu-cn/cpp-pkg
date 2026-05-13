@@ -59,6 +59,10 @@ export function registerGetCommand(program: Command) {
       collectOption,
     )
     .option("--checksum <sha256>", "Expected archive SHA-256 checksum")
+    .option(
+      "--binary [spec]",
+      "Install pre-built binaries (platform/arch format, e.g. linux/x64)",
+    )
     .option("--http-proxy <url>", "HTTP request proxy, overrides config")
     .option("--https-proxy <url>", "HTTPS request proxy, overrides config")
     .action(async (repoURLs: string[], options: GetPkgOptions) => {

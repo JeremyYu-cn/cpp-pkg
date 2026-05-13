@@ -92,7 +92,10 @@ export function buildInstalledDependency(
   integritySha256?: string,
 ): InstalledDependency {
   const releaseMetadata =
-    archive.kind === "github-release" || archive.kind === "gitee-release"
+    archive.kind === "github-release" ||
+    archive.kind === "gitee-release" ||
+    archive.kind === "gitlab-release" ||
+    archive.kind === "bitbucket-release"
       ? release
       : null;
 
@@ -111,7 +114,13 @@ export function buildInstalledDependency(
     release: {
       tagName: releaseMetadata?.tag_name || null,
       name: releaseMetadata?.name || null,
-      publishedAt: releaseMetadata?.published_at || null,
+      publishedAt:
+        (releaseMetadata &&
+          ("published_at" in releaseMetadata
+            ? (releaseMetadata as { published_at?: string | null }).published_at
+            : "released_at" in releaseMetadata
+              ? (releaseMetadata as { released_at?: string | null }).released_at
+              : null)) || null,
     },
     source: {
       type: archive.kind,

@@ -3,12 +3,19 @@ export type VersionPolicy =
   | "latest-prerelease"
   | "latest-release";
 
+export type ManifestDependencyHooks = {
+  postinstall?: string | string[];
+};
+
 export type GetPkgOptions = {
   httpProxy?: string;
   httpsProxy?: string;
   githubToken?: string;
   giteeToken?: string;
+  gitlabToken?: string;
+  bitbucketToken?: string;
   cache?: boolean;
+  offline?: boolean;
   fullProject?: boolean;
   tag?: string;
   branch?: string;
@@ -20,6 +27,13 @@ export type GetPkgOptions = {
   patches?: string[];
   components?: string[];
   checksum?: string;
+  binary?: {
+    platform?: string;
+    arch?: string;
+    pattern?: string;
+  } | string | true;
+  hooks?: ManifestDependencyHooks;
+  transitive?: boolean;
 };
 
 export type SourceRequest = {
@@ -56,10 +70,14 @@ export type InstalledDependency = {
   source: {
     type:
       | "archive-url"
+      | "bitbucket-release"
+      | "bitbucket-repository"
       | "gitee-release"
       | "gitee-repository"
       | "github-release"
-      | "github-repository";
+      | "github-repository"
+      | "gitlab-release"
+      | "gitlab-repository";
     archiveName: string;
     archiveUrl: string;
     integrity?: {
@@ -68,11 +86,12 @@ export type InstalledDependency = {
     requested?: SourceRequest;
   };
   install: {
-    mode: "include" | "full-project";
+    mode: "binary" | "full-project" | "include";
     target: string;
     headers: string[];
     paths: string[];
   };
+  transitiveDeps?: string[];
 };
 
 export type InstalledDependenciesFile = {

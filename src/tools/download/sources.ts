@@ -5,10 +5,14 @@ import path from "node:path";
 import { getRequestConfig, hasProviderToken } from "../request";
 import type {
   ArchiveDescriptor,
+  BitbucketRelease,
+  BitbucketRepository,
   GiteeRelease,
   GiteeRepository,
   GitHubReleaseAsset,
   GitHubRepository,
+  GitLabRelease,
+  GitLabRepository,
   ProviderRelease,
   ResolvedInputSource,
 } from "./types";
@@ -118,6 +122,83 @@ function getGiteeRepositoryURL(repoPath: string) {
 }
 
 /**
+ * Returns the GitLab repository path when one repository root URL is provided.
+ */
+function tryParseGitLabRepoPath(inputURL: string) {
+  const repo = new URL(inputURL);
+
+  const isRepositoryPage = ["gitlab.com", "www.gitlab.com"].includes(
+    repo.hostname,
+  );
+  const isApiRepository = repo.hostname === "api.gitlab.com";
+
+  if (!isRepositoryPage && !isApiRepository) {
+    return null;
+  }
+
+  const parts = repo.pathname.replace(/\/+$/, "").split("/").filter(Boolean);
+
+  if (isApiRepository) {
+    if (parts.length < 3 || parts[0] !== "projects") {
+      return null;
+    }
+
+    const encodedPath = parts.slice(1).join("/");
+    const decodedPath = decodeURIComponent(encodedPath);
+
+    return `/${decodedPath}`;
+  }
+
+  if (parts.length < 2) {
+    return null;
+  }
+
+  const repoPath = parts.join("/");
+
+  return `/${repoPath}`;
+}
+
+/**
+ * Rebuilds the canonical GitLab repository URL from the repository path.
+ */
+function getGitLabRepositoryURL(repoPath: string) {
+  return `https://gitlab.com${repoPath}`;
+}
+
+/**
+ * Returns the Bitbucket repository path when one repository root URL is provided.
+ */
+function tryParseBitbucketRepoPath(inputURL: string) {
+  const repo = new URL(inputURL);
+
+  const isRepositoryPage = ["bitbucket.org", "www.bitbucket.org"].includes(
+    repo.hostname,
+  );
+
+  if (!isRepositoryPage) {
+    return null;
+  }
+
+  const parts = repo.pathname.replace(/\/+$/, "").split("/").filter(Boolean);
+
+  if (parts.length < 2) {
+    return null;
+  }
+
+  const owner = parts[0]!;
+  const repoName = parts[1]!.replace(/\.git$/, "");
+
+  return `/${owner}/${repoName}`;
+}
+
+/**
+ * Rebuilds the canonical Bitbucket repository URL from the repository path.
+ */
+function getBitbucketRepositoryURL(repoPath: string) {
+  return `https://bitbucket.org${repoPath}`;
+}
+
+/**
  * Creates a stable directory name for one installed project.
  */
 function getProjectInstallDirName(identifier: string) {
@@ -184,6 +265,34 @@ export function resolveInputSource(inputURL: string): ResolvedInputSource {
       ),
       repositoryPath: giteeRepoPath,
       repositoryUrl: getGiteeRepositoryURL(giteeRepoPath),
+    };
+  }
+
+  const gitlabRepoPath = tryParseGitLabRepoPath(inputURL);
+
+  if (gitlabRepoPath) {
+    return {
+      kind: "gitlab-repository",
+      packageName: getPackageName(gitlabRepoPath),
+      projectInstallDirName: getProjectInstallDirName(
+        gitlabRepoPath.split("/").filter(Boolean).join("_"),
+      ),
+      repositoryPath: gitlabRepoPath,
+      repositoryUrl: getGitLabRepositoryURL(gitlabRepoPath),
+    };
+  }
+
+  const bitbucketRepoPath = tryParseBitbucketRepoPath(inputURL);
+
+  if (bitbucketRepoPath) {
+    return {
+      kind: "bitbucket-repository",
+      packageName: getPackageName(bitbucketRepoPath),
+      projectInstallDirName: getProjectInstallDirName(
+        bitbucketRepoPath.split("/").filter(Boolean).join("_"),
+      ),
+      repositoryPath: bitbucketRepoPath,
+      repositoryUrl: getBitbucketRepositoryURL(bitbucketRepoPath),
     };
   }
 
@@ -455,4 +564,228 @@ export async function fetchLatestGiteeRelease(
   }
 
   return pickGiteeRelease(res.data, options.prerelease);
+}
+
+/**
+ * Picks the latest non-upcoming GitLab release.
+ */
+function pickGitLabRelease(releases: GitLabRelease[], includePrerelease = false) {
+  return releases.find(
+    (release) => includePrerelease || !release.upcoming_release,
+  );
+}
+
+/**
+ * Picks the latest Bitbucket release (first from the list).
+ */
+function pickBitbucketRelease(releases: BitbucketRelease[]) {
+  return releases[0] ?? null;
+}
+
+/**
+ * Builds a release archive descriptor for one GitLab release.
+ */
+export function pickGitLabReleaseArchive(
+  repoPath: string,
+  release: GitLabRelease,
+) {
+  const tagName = release.tag_name || release.name || "release";
+  const projectName = repoPath.split("/").filter(Boolean).at(-1) ?? "project";
+
+  return {
+    kind: "gitlab-release" as const,
+    label: `${tagName}.zip`,
+    url: `https://gitlab.com${repoPath}/-/archive/${encodeURIComponent(tagName)}/${projectName}-${encodeURIComponent(tagName)}.zip`,
+  };
+}
+
+/**
+ * Builds a default-branch GitLab repository archive descriptor.
+ */
+export function pickGitLabRepositoryArchive(
+  repoPath: string,
+  repository: GitLabRepository,
+  ref = repository.default_branch,
+) {
+  const projectName = repoPath.split("/").filter(Boolean).at(-1) ?? "project";
+
+  return {
+    kind: "gitlab-repository" as const,
+    label: `${ref}.zip`,
+    url: `https://gitlab.com${repoPath}/-/archive/${encodeURIComponent(ref)}/${projectName}-${encodeURIComponent(ref)}.zip`,
+  };
+}
+
+/**
+ * Builds a release archive descriptor for one Bitbucket release/tag.
+ */
+export function pickBitbucketReleaseArchive(
+  repoPath: string,
+  release: BitbucketRelease,
+) {
+  const tagName = release.tag_name || release.name || "release";
+
+  return {
+    kind: "bitbucket-release" as const,
+    label: `${tagName}.zip`,
+    url: `https://bitbucket.org${repoPath}/get/${encodeURIComponent(tagName)}.zip`,
+  };
+}
+
+/**
+ * Builds a default-branch Bitbucket repository archive descriptor.
+ */
+export function pickBitbucketRepositoryArchive(
+  repoPath: string,
+  repository: BitbucketRepository,
+  ref?: string,
+) {
+  const branchRef = ref || repository.mainbranch?.name || "main";
+
+  return {
+    kind: "bitbucket-repository" as const,
+    label: `${branchRef}.zip`,
+    url: `https://bitbucket.org${repoPath}/get/${encodeURIComponent(branchRef)}.zip`,
+  };
+}
+
+/**
+ * Fetches GitLab repository metadata.
+ */
+export async function fetchGitLabRepository(
+  repoPath: string,
+  options: GetPkgOptions = {},
+) {
+  const url = `https://gitlab.com/api/v4/projects/${encodeURIComponent(repoPath)}`;
+  const res = await axios<GitLabRepository>(
+    url,
+    {
+      method: "GET",
+      ...getRequestConfig(url, options, {
+        "content-type": "application/json",
+        "user-agent": "cppkg-cli",
+      }),
+    },
+  );
+
+  return res.data;
+}
+
+/**
+ * Fetches GitLab releases and returns the latest published one when available.
+ */
+export async function fetchLatestGitLabRelease(
+  repoPath: string,
+  options: GetPkgOptions = {},
+) {
+  const url = `https://gitlab.com/api/v4/projects/${encodeURIComponent(repoPath)}/releases`;
+  const res = await axios<GitLabRelease[]>(
+    url,
+    {
+      method: "GET",
+      ...getRequestConfig(url, options, {
+        "content-type": "application/json",
+        "user-agent": "cppkg-cli",
+      }),
+    },
+  );
+
+  if (options.tag) {
+    return pickReleaseByTag(res.data, options.tag);
+  }
+
+  if (options.versionRange) {
+    const release = pickReleaseByVersionRange(
+      res.data,
+      options.versionRange,
+      options.prerelease,
+    );
+
+    if (!release) {
+      throw new Error(
+        `No GitLab release for ${repoPath} matches version range ${options.versionRange}.`,
+      );
+    }
+
+    return release;
+  }
+
+  return pickGitLabRelease(res.data, options.prerelease) ?? null;
+}
+
+type BitbucketTagRef = {
+  name: string;
+};
+
+type BitbucketRefsResponse = {
+  values: BitbucketTagRef[];
+};
+
+/**
+ * Fetches Bitbucket repository metadata.
+ */
+export async function fetchBitbucketRepository(
+  repoPath: string,
+  options: GetPkgOptions = {},
+) {
+  const url = `https://api.bitbucket.org/2.0/repositories${repoPath}`;
+  const res = await axios<BitbucketRepository>(
+    url,
+    {
+      method: "GET",
+      ...getRequestConfig(url, options, {
+        "content-type": "application/json",
+        "user-agent": "cppkg-cli",
+      }),
+    },
+  );
+
+  return res.data;
+}
+
+/**
+ * Fetches Bitbucket tags/releases and returns the latest one when available.
+ */
+export async function fetchLatestBitbucketRelease(
+  repoPath: string,
+  options: GetPkgOptions = {},
+) {
+  const url = `https://api.bitbucket.org/2.0/repositories${repoPath}/refs/tags?sort=-name`;
+  const res = await axios<BitbucketRefsResponse>(
+    url,
+    {
+      method: "GET",
+      ...getRequestConfig(url, options, {
+        "content-type": "application/json",
+        "user-agent": "cppkg-cli",
+      }),
+    },
+  );
+
+  const releases: BitbucketRelease[] = (res.data.values ?? []).map((tag) => ({
+    name: tag.name,
+    tag_name: tag.name,
+  }));
+
+  if (options.tag) {
+    return pickReleaseByTag(releases, options.tag);
+  }
+
+  if (options.versionRange) {
+    const release = pickReleaseByVersionRange(
+      releases,
+      options.versionRange,
+      options.prerelease,
+    );
+
+    if (!release) {
+      throw new Error(
+        `No Bitbucket release for ${repoPath} matches version range ${options.versionRange}.`,
+      );
+    }
+
+    return release;
+  }
+
+  return pickBitbucketRelease(releases);
 }

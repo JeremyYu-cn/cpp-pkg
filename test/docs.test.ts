@@ -34,6 +34,7 @@ test("generated command metadata covers the CLI commands", async () => {
 
   for (const command of [
     "add",
+    "audit",
     "build",
     "cache",
     "cache clean",
@@ -52,16 +53,22 @@ test("generated command metadata covers the CLI commands", async () => {
     "config list",
     "config remove",
     "config set",
+    "create",
     "get",
+    "import",
     "init",
     "inspect",
     "install",
+    "integrate",
     "list",
+    "publish",
     "remove",
     "search",
     "server",
     "status",
     "update",
+    "vendor",
+    "why",
   ]) {
     assert.ok(commandPaths.has(command), `missing ${command}`);
   }

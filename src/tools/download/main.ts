@@ -2,27 +2,43 @@ import type { GetPkgOptions } from "../../types/global";
 import type {
   ArchiveDescriptor,
   ProviderRelease,
+  ResolvedBitbucketRepositoryInput,
   ResolvedGiteeRepositoryInput,
   ResolvedGitHubRepositoryInput,
+  ResolvedGitLabRepositoryInput,
+  ResolvedInputSource,
 } from "./types";
 import { promises as fsp } from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { execSync } from "node:child_process";
 import { prepareArchive } from "./archive";
 import { installIncludePackage } from "./include";
 import { installProjectPackage } from "./project";
+import { installBinaryPackage } from "./binary";
 import { logger } from "../logger";
 import {
+  fetchBitbucketRepository,
   fetchGiteeRepository,
   fetchGitHubRepository,
+  fetchGitLabRepository,
+  fetchLatestBitbucketRelease,
   fetchLatestGiteeRelease,
   fetchLatestGitHubRelease,
+  fetchLatestGitLabRelease,
+  pickBitbucketReleaseArchive,
+  pickBitbucketRepositoryArchive,
   pickGiteeReleaseArchive,
   pickGiteeRepositoryArchive,
   pickGitHubReleaseArchive,
   pickGitHubRepositoryArchive,
+  pickGitLabReleaseArchive,
+  pickGitLabRepositoryArchive,
   resolveInputSource,
 } from "./sources";
+import { isArchiveInCache } from "./offline";
+import { resolveTransitiveDependencies } from "./transitive";
+import { upsertDependencyTransitiveDeps } from "../deps";
 
 const VERSION_POLICIES = new Set([
   "default-branch",
@@ -32,7 +48,11 @@ const VERSION_POLICIES = new Set([
 
 type ReleaseBackedRepositoryContext<TRelease extends ProviderRelease> = {
   detectHeadersWithoutRelease?: boolean;
-  inputSource: ResolvedGiteeRepositoryInput | ResolvedGitHubRepositoryInput;
+  inputSource:
+    | ResolvedBitbucketRepositoryInput
+    | ResolvedGiteeRepositoryInput
+    | ResolvedGitHubRepositoryInput
+    | ResolvedGitLabRepositoryInput;
   options: GetPkgOptions;
   packageName: string;
   release: TRelease | null;
@@ -41,6 +61,45 @@ type ReleaseBackedRepositoryContext<TRelease extends ProviderRelease> = {
   repositoryArchive: ArchiveDescriptor;
   tempDir: string;
 };
+
+async function resolveTransitiveAfterProjectInstall(
+  inputSource: ResolvedInputSource,
+  normalizedOptions: GetPkgOptions,
+) {
+  if (normalizedOptions.transitive === false) {
+    return;
+  }
+
+  const visited = new Set<string>();
+  const rootUrl = inputSource.repositoryUrl
+    .trim()
+    .replace(/\/+$/, "")
+    .replace(/\.git$/i, "")
+    .toLowerCase();
+
+  visited.add(rootUrl);
+
+  logger.info(
+    `Checking for transitive dependencies in ${inputSource.packageName}`,
+  );
+
+  const result = await resolveTransitiveDependencies(
+    inputSource.repositoryUrl,
+    normalizedOptions,
+    visited,
+    (source, opts) => getVCPkg(source, opts),
+  );
+
+  if (result.relations.size > 0) {
+    const installed = await upsertDependencyTransitiveDeps(result.relations);
+
+    if (installed) {
+      logger.success(
+        `Resolved ${installed} transitive package(s)`,
+      );
+    }
+  }
+}
 
 function normalizeRefOption(value: string | undefined, optionName: string) {
   if (value === undefined) {
@@ -257,6 +316,40 @@ function normalizeGetPkgOptions(options: GetPkgOptions) {
     delete normalizedOptions.checksum;
   }
 
+  if (options.binary) {
+    const rawBinary = options.binary;
+
+    if (typeof rawBinary === "string") {
+      const parts = rawBinary.trim().split("/").filter(Boolean);
+      const platform = parts[0];
+      const arch = parts[1];
+
+      if (!platform) {
+        throw new Error("Option --binary cannot be empty.");
+      }
+
+      if (arch) {
+        normalizedOptions.binary = { platform, arch };
+      } else {
+        normalizedOptions.binary = { platform };
+      }
+    } else if (typeof rawBinary === "object") {
+      const result: NonNullable<GetPkgOptions["binary"]> = {};
+
+      if (rawBinary.platform) result.platform = rawBinary.platform;
+      if (rawBinary.arch) result.arch = rawBinary.arch;
+      if (rawBinary.pattern) result.pattern = rawBinary.pattern;
+
+      normalizedOptions.binary = result;
+    } else {
+      normalizedOptions.binary = {};
+    }
+  } else {
+    delete normalizedOptions.binary;
+  }
+
+  normalizedOptions.transitive = options.transitive !== false;
+
   return normalizedOptions;
 }
 
@@ -317,6 +410,22 @@ async function installReleaseAwareRepository<TRelease extends ProviderRelease>(
 
   logger.info(`Resolving install mode for ${repoPath}`);
 
+  if (options.binary) {
+    logger.info(
+      `Binary install enabled for ${repoPath}, placing binaries in bin directory`,
+    );
+
+    const prepared = await prepareArchive(
+      tempDir,
+      packageName,
+      repositoryArchive,
+      "binary",
+      options,
+    );
+    await installBinaryPackage(inputSource, release, prepared, options);
+    return;
+  }
+
   if (options.fullProject) {
     logger.info(
       `Forced full-project install enabled for ${repoPath}, skipping include-directory detection`,
@@ -330,6 +439,7 @@ async function installReleaseAwareRepository<TRelease extends ProviderRelease>(
       options,
     );
     await installProjectPackage(inputSource, release, prepared, options);
+    await resolveTransitiveAfterProjectInstall(inputSource, options);
     return;
   }
 
@@ -377,6 +487,7 @@ async function installReleaseAwareRepository<TRelease extends ProviderRelease>(
       options,
     );
     await installProjectPackage(inputSource, null, prepared, options);
+    await resolveTransitiveAfterProjectInstall(inputSource, options);
     return;
   }
 
@@ -400,10 +511,37 @@ async function installReleaseAwareRepository<TRelease extends ProviderRelease>(
       options,
     );
     await installProjectPackage(inputSource, release, prepared, options);
+    await resolveTransitiveAfterProjectInstall(inputSource, options);
     return;
   }
 
   await installIncludePackage(inputSource, release, preparedHeaderArchive, options);
+}
+
+/**
+ * Executes post-install hooks defined in the dependency manifest.
+ */
+function runPostinstallHooks(options: GetPkgOptions) {
+  const commands = options.hooks?.postinstall;
+
+  if (!commands) return;
+
+  const commandList = Array.isArray(commands) ? commands : [commands];
+
+  if (!commandList.length) return;
+
+  logger.info("Running post-install hooks");
+
+  for (const command of commandList) {
+    const trimmed = command.trim();
+
+    if (!trimmed) continue;
+
+    logger.progress(`Executing: ${trimmed}`);
+    execSync(trimmed, { cwd: process.cwd(), stdio: "inherit" });
+  }
+
+  logger.success("Post-install hooks completed");
 }
 
 /**
@@ -416,6 +554,18 @@ export async function getVCPkg(repoURL: string, options: GetPkgOptions = {}) {
   const tempDir = await fsp.mkdtemp(path.join(os.tmpdir(), "cppkg-cli-"));
 
   try {
+    if (normalizedOptions.offline) {
+      logger.info("Offline mode: checking local cache for archive");
+
+      if (inputSource.kind === "archive-url") {
+        if (!isArchiveInCache(inputSource.archive)) {
+          throw new Error(
+            `Package not available offline. Run without --offline to download.`,
+          );
+        }
+      }
+    }
+
     if (inputSource.kind === "archive-url") {
       if (
         normalizedOptions.tag ||
@@ -425,18 +575,35 @@ export async function getVCPkg(repoURL: string, options: GetPkgOptions = {}) {
       ) {
         if (!normalizedOptions.versionRange && !normalizedOptions.versionPolicy) {
           throw new Error(
-            "Options --tag and --branch can only be used with GitHub or Gitee repository URLs.",
+            "Options --tag and --branch can only be used with GitHub, Gitee, GitLab, or Bitbucket repository URLs.",
           );
         }
 
         throw new Error(
-          "Options --tag, --branch, --version-range, and --version-policy can only be used with GitHub or Gitee repository URLs.",
+          "Options --tag, --branch, --version-range, and --version-policy can only be used with GitHub, Gitee, GitLab, or Bitbucket repository URLs.",
         );
       }
 
       logger.info(`Resolving install mode for ${inputSource.repositoryUrl}`);
+
+      if (normalizedOptions.binary) {
+        logger.info(
+          `Binary install enabled for ${inputSource.repositoryUrl}, placing binaries in bin directory`,
+        );
+
+        const prepared = await prepareArchive(
+          tempDir,
+          packageName,
+          inputSource.archive,
+          "binary",
+          normalizedOptions,
+        );
+        await installBinaryPackage(inputSource, null, prepared, normalizedOptions);
+        return;
+      }
+
       logger.info(
-        `No GitHub releases API is available for ${inputSource.repositoryUrl}, installing the archive as a full project`,
+        `No releases API is available for ${inputSource.repositoryUrl}, installing the archive as a full project`,
       );
 
       const prepared = await prepareArchive(
@@ -449,14 +616,32 @@ export async function getVCPkg(repoURL: string, options: GetPkgOptions = {}) {
 
       if (!normalizedOptions.fullProject && normalizedOptions.includePath) {
         await installIncludePackage(inputSource, null, prepared, normalizedOptions);
+        runPostinstallHooks(normalizedOptions);
         return;
       }
 
       await installProjectPackage(inputSource, null, prepared, normalizedOptions);
+      await resolveTransitiveAfterProjectInstall(inputSource, normalizedOptions);
+      runPostinstallHooks(normalizedOptions);
       return;
     }
 
     if (inputSource.kind === "gitee-repository") {
+      if (normalizedOptions.offline) {
+        const repositoryRef = normalizedOptions.branch || normalizedOptions.tag;
+        const repoArchive = pickGiteeRepositoryArchive(
+          inputSource.repositoryPath,
+          { default_branch: repositoryRef || "master", full_name: inputSource.repositoryPath, html_url: inputSource.repositoryUrl },
+          repositoryRef,
+        );
+
+        if (!isArchiveInCache(repoArchive)) {
+          throw new Error(
+            `Package not available offline. Run without --offline to download.`,
+          );
+        }
+      }
+
       const repository = await fetchGiteeRepository(
         inputSource.repositoryPath,
         normalizedOptions,
@@ -488,7 +673,130 @@ export async function getVCPkg(repoURL: string, options: GetPkgOptions = {}) {
         ),
         tempDir,
       });
+      runPostinstallHooks(normalizedOptions);
       return;
+    }
+
+    if (inputSource.kind === "gitlab-repository") {
+      if (normalizedOptions.offline) {
+        const repositoryRef = normalizedOptions.branch || normalizedOptions.tag;
+        const repoArchive = pickGitLabRepositoryArchive(
+          inputSource.repositoryPath,
+          { default_branch: repositoryRef || "main", path_with_namespace: inputSource.repositoryPath, web_url: inputSource.repositoryUrl },
+          repositoryRef,
+        );
+
+        if (!isArchiveInCache(repoArchive)) {
+          throw new Error(
+            `Package not available offline. Run without --offline to download.`,
+          );
+        }
+      }
+
+      const repository = await fetchGitLabRepository(
+        inputSource.repositoryPath,
+        normalizedOptions,
+      );
+      const release = normalizedOptions.branch ||
+          normalizedOptions.versionPolicy === "default-branch"
+        ? null
+        : await fetchLatestGitLabRelease(
+            inputSource.repositoryPath,
+            normalizedOptions,
+          );
+      const repositoryRef = normalizedOptions.branch || normalizedOptions.tag;
+
+      await installReleaseAwareRepository({
+        detectHeadersWithoutRelease: Boolean(
+          repositoryRef || normalizedOptions.versionPolicy === "default-branch",
+        ),
+        inputSource,
+        options: normalizedOptions,
+        packageName,
+        release,
+        releaseArchive: () =>
+          pickGitLabReleaseArchive(inputSource.repositoryPath, release!),
+        repoPath: inputSource.repositoryPath,
+        repositoryArchive: pickGitLabRepositoryArchive(
+          inputSource.repositoryPath,
+          repository,
+          repositoryRef,
+        ),
+        tempDir,
+      });
+      runPostinstallHooks(normalizedOptions);
+      return;
+    }
+
+    if (inputSource.kind === "bitbucket-repository") {
+      if (normalizedOptions.offline) {
+        const repositoryRef = normalizedOptions.branch || normalizedOptions.tag;
+        const repoArchive = pickBitbucketRepositoryArchive(
+          inputSource.repositoryPath,
+          {
+            mainbranch: { name: repositoryRef || "main" },
+            full_name: inputSource.repositoryPath,
+            links: { html: { href: inputSource.repositoryUrl } },
+          },
+          repositoryRef,
+        );
+
+        if (!isArchiveInCache(repoArchive)) {
+          throw new Error(
+            `Package not available offline. Run without --offline to download.`,
+          );
+        }
+      }
+
+      const repository = await fetchBitbucketRepository(
+        inputSource.repositoryPath,
+        normalizedOptions,
+      );
+      const release = normalizedOptions.branch ||
+          normalizedOptions.versionPolicy === "default-branch"
+        ? null
+        : await fetchLatestBitbucketRelease(
+            inputSource.repositoryPath,
+            normalizedOptions,
+          );
+      const repositoryRef = normalizedOptions.branch || normalizedOptions.tag;
+
+      await installReleaseAwareRepository({
+        detectHeadersWithoutRelease: Boolean(
+          repositoryRef || normalizedOptions.versionPolicy === "default-branch",
+        ),
+        inputSource,
+        options: normalizedOptions,
+        packageName,
+        release,
+        releaseArchive: () =>
+          pickBitbucketReleaseArchive(inputSource.repositoryPath, release!),
+        repoPath: inputSource.repositoryPath,
+        repositoryArchive: pickBitbucketRepositoryArchive(
+          inputSource.repositoryPath,
+          repository,
+          repositoryRef,
+        ),
+        tempDir,
+      });
+      runPostinstallHooks(normalizedOptions);
+      return;
+    }
+
+    if (inputSource.kind === "github-repository") {
+    if (normalizedOptions.offline) {
+      const repositoryRef = normalizedOptions.branch || normalizedOptions.tag;
+      const repoArchive = pickGitHubRepositoryArchive(
+        inputSource.repositoryPath,
+        { default_branch: repositoryRef || "main", full_name: inputSource.repositoryPath, html_url: inputSource.repositoryUrl },
+        repositoryRef,
+      );
+
+      if (!isArchiveInCache(repoArchive)) {
+        throw new Error(
+          `Package not available offline. Run without --offline to download.`,
+        );
+      }
     }
 
     const repository = await fetchGitHubRepository(
@@ -521,6 +829,8 @@ export async function getVCPkg(repoURL: string, options: GetPkgOptions = {}) {
       ),
       tempDir,
     });
+    runPostinstallHooks(normalizedOptions);
+    }
   } finally {
     await fsp.rm(tempDir, { force: true, recursive: true });
   }

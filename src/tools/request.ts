@@ -6,10 +6,10 @@ import { resolveCliConfig } from "../public/config";
 
 type RequestOptions = Pick<
   GetPkgOptions,
-  "giteeToken" | "githubToken" | "httpProxy" | "httpsProxy"
+  "bitbucketToken" | "giteeToken" | "githubToken" | "gitlabToken" | "httpProxy" | "httpsProxy"
 >;
 
-type Provider = "gitee" | "github";
+type Provider = "bitbucket" | "gitee" | "github" | "gitlab";
 
 function getProviderForURL(rawURL: string): Provider | null {
   try {
@@ -21,6 +21,14 @@ function getProviderForURL(rawURL: string): Provider | null {
 
     if (["gitee.com", "www.gitee.com"].includes(parsed.hostname)) {
       return "gitee";
+    }
+
+    if (["gitlab.com", "www.gitlab.com", "api.gitlab.com"].includes(parsed.hostname)) {
+      return "gitlab";
+    }
+
+    if (["bitbucket.org", "www.bitbucket.org", "api.bitbucket.org"].includes(parsed.hostname)) {
+      return "bitbucket";
     }
   } catch {
     return null;
@@ -47,10 +55,44 @@ export function getGiteeToken(options: RequestOptions = {}) {
   return options.giteeToken || config.giteeToken || process.env.GITEE_TOKEN || "";
 }
 
+export function getGitLabToken(options: RequestOptions = {}) {
+  const config = resolveCliConfig();
+
+  return (
+    options.gitlabToken ||
+    config.gitlabToken ||
+    process.env.GITLAB_TOKEN ||
+    process.env.GL_TOKEN ||
+    ""
+  );
+}
+
+export function getBitbucketToken(options: RequestOptions = {}) {
+  const config = resolveCliConfig();
+
+  return (
+    options.bitbucketToken ||
+    config.bitbucketToken ||
+    process.env.BITBUCKET_TOKEN ||
+    process.env.BB_TOKEN ||
+    ""
+  );
+}
+
 export function hasProviderToken(provider: Provider, options: RequestOptions = {}) {
-  return provider === "github"
-    ? Boolean(getGitHubToken(options))
-    : Boolean(getGiteeToken(options));
+  if (provider === "github") {
+    return Boolean(getGitHubToken(options));
+  }
+
+  if (provider === "gitee") {
+    return Boolean(getGiteeToken(options));
+  }
+
+  if (provider === "gitlab") {
+    return Boolean(getGitLabToken(options));
+  }
+
+  return Boolean(getBitbucketToken(options));
 }
 
 export function getRequestHeaders(
@@ -71,6 +113,22 @@ export function getRequestHeaders(
 
   if (provider === "gitee") {
     const token = getGiteeToken(options);
+
+    if (token) {
+      resolvedHeaders.authorization = `Bearer ${token}`;
+    }
+  }
+
+  if (provider === "gitlab") {
+    const token = getGitLabToken(options);
+
+    if (token) {
+      resolvedHeaders["PRIVATE-TOKEN"] = token;
+    }
+  }
+
+  if (provider === "bitbucket") {
+    const token = getBitbucketToken(options);
 
     if (token) {
       resolvedHeaders.authorization = `Bearer ${token}`;

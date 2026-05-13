@@ -1,0 +1,272 @@
+import fs from "node:fs";
+import path from "node:path";
+import { resolveCliConfig } from "../public/config";
+
+export const CPPKG_CMAKE_FILE_NAME = "cppkg.cmake";
+
+export type IntegrateCppkgOptions = {
+  dryRun?: boolean;
+  target?: string;
+};
+
+export type GenerateCppkgCmakeOptions = {
+  force?: boolean;
+  output?: string;
+};
+
+function findCmakeLists(): string | null {
+  const cwd = process.cwd();
+  const cmakePath = path.join(cwd, "CMakeLists.txt");
+
+  if (fs.existsSync(cmakePath)) {
+    return cmakePath;
+  }
+
+  return null;
+}
+
+function getCppkgIncludeDir(): string {
+  const config = resolveCliConfig();
+  return `\${CMAKE_SOURCE_DIR}/${config.packageRootDir}/${config.includeDirName}`;
+}
+
+function getCppkgBinDir(): string {
+  const config = resolveCliConfig();
+  return `\${CMAKE_SOURCE_DIR}/${config.packageRootDir}/${config.projectsDirName}`;
+}
+
+function hasCppkgLines(content: string): boolean {
+  return (
+    content.includes("cppkg headers") ||
+    content.includes("cppkg binaries") ||
+    content.includes("cpp_libs/include") ||
+    content.includes("cpp_libs/bin")
+  );
+}
+
+function insertAfterProjectCall(
+  content: string,
+  linesToInsert: string[],
+): string {
+  const projectMatch = /^\s*project\s*\(/im;
+  const match = projectMatch.exec(content);
+
+  if (!match) {
+    return [...linesToInsert, "", content].join("\n");
+  }
+
+  let insertPos = match.index + match[0].length;
+  let depth = 1;
+
+  for (let i = insertPos; i < content.length; i++) {
+    if (content[i] === "(") depth++;
+    if (content[i] === ")") {
+      depth--;
+      if (depth === 0) {
+        insertPos = i + 1;
+        break;
+      }
+    }
+  }
+
+  const before = content.slice(0, insertPos);
+  const after = content.slice(insertPos).replace(/^\n+/, "");
+
+  return [before, "", ...linesToInsert, "", after].join("\n");
+}
+
+function buildCppkgLines(includeDir: string, binDir: string): string[] {
+  const lines: string[] = [
+    "# Added by cppkg integrate",
+    `include_directories(${includeDir})`,
+  ];
+
+  if (fs.existsSync(path.resolve(process.cwd(), binDir.replace(/\$\{CMAKE_SOURCE_DIR\}/, ".")))) {
+    lines.push(`link_directories(${binDir})`);
+    lines.push("# cppkg full-project targets can be added with add_subdirectory");
+  }
+
+  return lines;
+}
+
+function createBasicCmakeLists(includeDir: string, binDir: string): string {
+  const lines: string[] = [
+    "cmake_minimum_required(VERSION 3.16)",
+    "project(my_project LANGUAGES C CXX)",
+    "",
+    ...buildCppkgLines(includeDir, binDir),
+    "",
+    "file(GLOB_RECURSE SOURCES src/*.cpp src/*.c)",
+    "add_executable(${PROJECT_NAME} ${SOURCES})",
+    "target_link_libraries(${PROJECT_NAME} PRIVATE cppkg::headers)",
+    "",
+  ];
+
+  return lines.join("\n");
+}
+
+/**
+ * Reads CMakeLists.txt, checks for existing cppkg lines, inserts include_directories
+ * and link_directories after the project() call, and writes the updated file.
+ */
+export function integrateCppkg(options: IntegrateCppkgOptions = {}): {
+  cmakePath: string;
+  added: string[];
+  created: boolean;
+} {
+  const includeDir = getCppkgIncludeDir();
+  const binDir = getCppkgBinDir();
+  let cmakePath = findCmakeLists();
+  const created = !cmakePath;
+
+  if (!cmakePath) {
+    cmakePath = path.resolve(process.cwd(), "CMakeLists.txt");
+
+    if (options.dryRun) {
+      return {
+        cmakePath,
+        added: [`Would create CMakeLists.txt with cppkg integration`],
+        created: true,
+      };
+    }
+
+    fs.writeFileSync(cmakePath, createBasicCmakeLists(includeDir, binDir), "utf8");
+
+    return {
+      cmakePath,
+      added: ["Created CMakeLists.txt with cppkg integration"],
+      created: true,
+    };
+  }
+
+  const content = fs.readFileSync(cmakePath, "utf8");
+
+  if (hasCppkgLines(content)) {
+    return {
+      cmakePath,
+      added: [],
+      created: false,
+    };
+  }
+
+  const linesToInsert = options.target
+    ? [
+        `# cppkg integration for target ${options.target}`,
+        `target_include_directories(${options.target} PRIVATE ${includeDir})`,
+        `target_link_directories(${options.target} PRIVATE ${binDir})`,
+      ]
+    : buildCppkgLines(includeDir, binDir);
+
+  if (options.dryRun) {
+    return {
+      cmakePath,
+      added: linesToInsert,
+      created: false,
+    };
+  }
+
+  const updated = insertAfterProjectCall(content, linesToInsert);
+
+  fs.writeFileSync(cmakePath, updated, "utf8");
+
+  return {
+    cmakePath,
+    added: linesToInsert,
+    created: false,
+  };
+}
+
+function toCMakeRelativePath(fromDirectory: string, targetPath: string) {
+  const relativePath = path.relative(fromDirectory, targetPath).replace(/\\/g, "/");
+
+  if (!relativePath) {
+    return ".";
+  }
+
+  return relativePath.startsWith(".") ? relativePath : `./${relativePath}`;
+}
+
+function renderCppkgCmake(outputPath: string) {
+  const config = resolveCliConfig();
+  const outputDir = path.dirname(outputPath);
+  const packageRootPath = path.resolve(process.cwd(), config.packageRootDir);
+  const packageRootRelative = toCMakeRelativePath(outputDir, packageRootPath);
+
+  return [
+    "# Generated by cppkg-cli integrate.",
+    "include_guard(GLOBAL)",
+    "",
+    `set(CPPKG_ROOT "\${CMAKE_CURRENT_LIST_DIR}/${packageRootRelative}")`,
+    `set(CPPKG_INCLUDE_DIR "\${CPPKG_ROOT}/${config.includeDirName}")`,
+    `set(CPPKG_BIN_DIR "\${CPPKG_ROOT}/${config.projectsDirName}")`,
+    "",
+    "add_library(cppkg_headers INTERFACE)",
+    "add_library(cppkg::headers ALIAS cppkg_headers)",
+    "",
+    "if(EXISTS \"${CPPKG_INCLUDE_DIR}\")",
+    "  target_include_directories(cppkg_headers INTERFACE \"${CPPKG_INCLUDE_DIR}\")",
+    "endif()",
+    "",
+    "if(EXISTS \"${CPPKG_BIN_DIR}\")",
+    "  link_directories(\"${CPPKG_BIN_DIR}\")",
+    "endif()",
+    "",
+    "option(CPPKG_ADD_PROJECTS \"Add cppkg full-project installs with add_subdirectory\" ON)",
+    "",
+    "if(CPPKG_ADD_PROJECTS AND EXISTS \"${CPPKG_ROOT}/${config.projectsDirName}\")",
+    "  file(GLOB CPPKG_PROJECT_CMAKE_LISTS CONFIGURE_DEPENDS \"${CPPKG_ROOT}/${config.projectsDirName}/*/CMakeLists.txt\")",
+    "  foreach(CPPKG_PROJECT_CMAKE_LIST IN LISTS CPPKG_PROJECT_CMAKE_LISTS)",
+    "    get_filename_component(CPPKG_PROJECT_DIR \"${CPPKG_PROJECT_CMAKE_LIST}\" DIRECTORY)",
+    "    get_filename_component(CPPKG_PROJECT_NAME \"${CPPKG_PROJECT_DIR}\" NAME)",
+    "    add_subdirectory(",
+    "      \"${CPPKG_PROJECT_DIR}\"",
+    "      \"${CMAKE_BINARY_DIR}/cppkg-projects/${CPPKG_PROJECT_NAME}\"",
+    "      EXCLUDE_FROM_ALL",
+    "    )",
+    "  endforeach()",
+    "endif()",
+    "",
+  ].join("\n");
+}
+
+function normalizeProjectRelativeOutput(value: string) {
+  const normalized = value.trim().replace(/\\/g, "/").replace(/^\.\/+/, "");
+
+  if (!normalized) {
+    throw new Error("Option --output cannot be empty.");
+  }
+
+  if (path.isAbsolute(normalized)) {
+    throw new Error("Option --output must be a relative project path.");
+  }
+
+  const segments = normalized.split("/").filter(Boolean);
+
+  if (!segments.length || segments.some((segment) => segment === "." || segment === "..")) {
+    throw new Error("Option --output must stay inside the current project.");
+  }
+
+  return segments.join("/");
+}
+
+export function generateCppkgCmake(
+  options: GenerateCppkgCmakeOptions = {},
+) {
+  const output = options.output
+    ? normalizeProjectRelativeOutput(options.output)
+    : CPPKG_CMAKE_FILE_NAME;
+  const outputPath = path.resolve(process.cwd(), output);
+
+  if (fs.existsSync(outputPath) && !options.force) {
+    throw new Error(
+      `${output} already exists. Use --force to overwrite it.`,
+    );
+  }
+
+  fs.mkdirSync(path.dirname(outputPath), { recursive: true });
+  fs.writeFileSync(outputPath, renderCppkgCmake(outputPath), "utf8");
+
+  return {
+    outputPath,
+  };
+}

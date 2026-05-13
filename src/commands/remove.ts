@@ -2,6 +2,10 @@ import { Command } from "commander";
 import { removeInstalledPackage } from "../tools/manage/index";
 import { logger } from "../tools/logger";
 
+type RemoveOptions = {
+  dryRun?: boolean;
+};
+
 /**
  * Registers the command that removes one installed package by selector.
  */
@@ -13,7 +17,13 @@ export function registerRemoveCommand(program: Command) {
       "<package>",
       "Installed package name, repository path, owner/repo, or GitHub/Gitee repository URL",
     )
-    .action(async (selector) => {
+    .option("--dry-run", "Log what would be removed without deleting")
+    .action(async (selector, options: RemoveOptions) => {
+      if (options.dryRun) {
+        logger.info(`Dry run: would remove package matching selector "${selector}"`);
+        return;
+      }
+
       const result = await removeInstalledPackage(selector);
 
       logger.success(`Removed ${result.dependency.name} from ${result.installPath}.`);

@@ -1,15 +1,37 @@
 import fs from "node:fs";
 import { promises as fsp } from "node:fs";
 import path from "node:path";
-import type { GetPkgOptions, VersionPolicy } from "../types/global";
+import type { GetPkgOptions, ManifestDependencyHooks, VersionPolicy } from "../types/global";
 import { resolveInputSource } from "../tools/download/sources";
 
 export const MANIFEST_FILE_NAME = "cppkg.json";
 
+export const PLATFORM_NAMES = [
+  "linux",
+  "macos",
+  "windows",
+  "android",
+  "ios",
+] as const;
+
+export type PlatformName = (typeof PLATFORM_NAMES)[number];
+
+const PLATFORM_MAP: Record<string, PlatformName> = {
+  linux: "linux",
+  darwin: "macos",
+  win32: "windows",
+  android: "android",
+  ios: "ios",
+};
+
+function getCurrentPlatform(): PlatformName {
+  return PLATFORM_MAP[process.platform] ?? "linux";
+}
+
 const DEPENDENCY_KEYS = new Set([
   "name", "source", "tag", "branch", "prerelease", "fullProject",
   "versionPolicy", "versionRange", "includePath", "stripPrefix", "patches",
-  "components", "checksum",
+  "components", "checksum", "binary",
 ]);
 
 const VERSION_POLICIES = new Set<VersionPolicy>([
@@ -24,7 +46,17 @@ export type ManifestDependency = {
   prerelease?: boolean; fullProject?: boolean;
   includePath?: string[]; stripPrefix?: string; patches?: string[];
   components?: string[]; checksum?: string;
+  binary?: { platform?: string; arch?: string; pattern?: string };
+  platforms?: Partial<Record<PlatformName, ManifestDependencyPlatformOverride>>;
+  platformWhitelist?: PlatformName[];
+  hooks?: ManifestDependencyHooks;
 };
+
+export type ManifestDependencyPlatformOverride = Omit<
+  ManifestDependency,
+  "platforms" | "platformWhitelist"
+>;
+
 export type PackageManifest = { dependencies: ManifestDependency[] };
 
 type InstallModifierFields = {
@@ -37,6 +69,7 @@ type InstallModifierFields = {
 
 export type AddManifestDependencyOptions = Pick<
   ManifestDependency,
+  | "binary"
   | "branch"
   | "checksum"
   | "components"
@@ -89,6 +122,54 @@ function readOptionalString(record: Record<string, unknown>, key: string, label:
   return value === undefined ? undefined : readString(value, `${label}.${key}`);
 }
 
+function parseBinary(
+  value: unknown,
+  label: string,
+): ManifestDependency["binary"] {
+  if (value === undefined) return undefined;
+
+  if (typeof value === "string") {
+    const parts = value.trim().split("/").filter(Boolean);
+    const platform = parts[0];
+
+    if (!platform) {
+      throw new Error(`${label} cannot be empty.`);
+    }
+
+    if (parts.length === 1) {
+      return { platform };
+    }
+
+    const arch = parts[1];
+
+    if (arch) {
+      return { platform, arch };
+    }
+
+    return { platform };
+  }
+
+  if (!isRecord(value)) {
+    throw new Error(`${label} must be a string or object.`);
+  }
+
+  const platform = readOptionalString(value, "platform", label);
+  const arch = readOptionalString(value, "arch", label);
+  const pattern = readOptionalString(value, "pattern", label);
+
+  if (!platform && !arch && !pattern) {
+    throw new Error(`${label} must define at least one of platform, arch, or pattern.`);
+  }
+
+  const result: NonNullable<ManifestDependency["binary"]> = {};
+
+  if (platform) result.platform = platform;
+  if (arch) result.arch = arch;
+  if (pattern) result.pattern = pattern;
+
+  return result;
+}
+
 function readOptionalBoolean(record: Record<string, unknown>, key: string, label: string) {
   const value = record[key];
 
@@ -99,6 +180,114 @@ function readOptionalBoolean(record: Record<string, unknown>, key: string, label
   }
 
   return value;
+}
+
+function readOptionalStringOrStringArray(
+  record: Record<string, unknown>,
+  key: string,
+  label: string,
+): string | string[] | undefined {
+  const value = record[key];
+
+  if (value === undefined) return undefined;
+
+  if (typeof value === "string") {
+    return readString(value, `${label}.${key}`);
+  }
+
+  if (!Array.isArray(value)) {
+    throw new Error(`${label}.${key} must be a string or array of strings.`);
+  }
+
+  return value.map((entry, index) =>
+    readString(entry, `${label}.${key}[${index}]`),
+  );
+}
+
+function parseHooks(value: unknown, label: string): ManifestDependencyHooks | undefined {
+  if (value === undefined) return undefined;
+
+  const record = readObject(value, label);
+
+  const unknownKey = Object.keys(record).find((key) => key !== "postinstall");
+
+  if (unknownKey) {
+    throw new Error(`${label} contains unknown hook "${unknownKey}". Supported hooks: postinstall`);
+  }
+
+  const postinstall = readOptionalStringOrStringArray(record, "postinstall", label);
+
+  if (!postinstall) return undefined;
+
+  return { postinstall };
+}
+
+function readPlatformWhitelist(
+  record: Record<string, unknown>,
+  key: string,
+  label: string,
+): PlatformName[] | undefined {
+  const value = record[key];
+
+  if (value === undefined) return undefined;
+
+  if (!Array.isArray(value)) {
+    throw new Error(`${label}.${key} must be an array of platform names.`);
+  }
+
+  return value.map((entry, index) => {
+    const platformName = readString(entry, `${label}.${key}[${index}]`);
+
+    if (!PLATFORM_NAMES.includes(platformName as PlatformName)) {
+      throw new Error(
+        `${label}.${key}[${index}] must be one of: ${PLATFORM_NAMES.join(", ")}.`,
+      );
+    }
+
+    return platformName as PlatformName;
+  });
+}
+
+function parsePlatforms(
+  value: unknown,
+  label: string,
+): Partial<Record<PlatformName, ManifestDependencyPlatformOverride>> | undefined {
+  if (value === undefined) return undefined;
+
+  const record = readObject(value, label);
+
+  const unknownPlatform = Object.keys(record).find(
+    (key) => !PLATFORM_NAMES.includes(key as PlatformName),
+  );
+
+  if (unknownPlatform) {
+    throw new Error(
+      `${label} contains unknown platform "${unknownPlatform}". Supported platforms: ${PLATFORM_NAMES.join(", ")}`,
+    );
+  }
+
+  const platforms: Partial<Record<PlatformName, ManifestDependencyPlatformOverride>> = {};
+
+  for (const [platformName, platformValue] of Object.entries(record)) {
+    const platformRecord = readObject(
+      platformValue,
+      `${label}.${platformName}`,
+    );
+
+    assertDependencyKeys(
+      platformRecord,
+      `${label}.${platformName}`,
+    );
+
+    platforms[platformName as PlatformName] = parseDependency(
+      platformValue,
+      `${label}.${platformName}`,
+    ) as ManifestDependencyPlatformOverride;
+  }
+
+  if (!Object.keys(platforms).length) return undefined;
+
+  return platforms;
 }
 
 function normalizeVersionPolicyValue(value: string, label: string) {
@@ -271,7 +460,7 @@ function normalizeSourceInput(value: string) {
   try {
     return readSource(source, "source");
   } catch {
-    if (/^(?:www\.)?(?:github|gitee)\.com\//i.test(source)) {
+    if (/^(?:www\.)?(?:github|gitee|gitlab|bitbucket)\.com\//i.test(source)) {
       return readSource(`https://${source}`, "source");
     }
 
@@ -280,7 +469,7 @@ function normalizeSourceInput(value: string) {
     }
 
     throw new Error(
-      "source must be a URL, github.com/owner/repo, gitee.com/owner/repo, or owner/repo.",
+      "source must be a URL, github.com/owner/repo, gitee.com/owner/repo, gitlab.com/owner/repo, bitbucket.org/owner/repo, or owner/repo.",
     );
   }
 }
@@ -364,6 +553,7 @@ function parseDependency(value: unknown, nameOrIndex: number | string, fallbackN
     versionRange,
     prerelease: readOptionalBoolean(record, "prerelease", label),
     fullProject: readOptionalBoolean(record, "fullProject", label),
+    binary: parseBinary(record.binary, `${label}.binary`),
     ...readInstallModifiers(
       {
         checksum: readOptionalString(record, "checksum", label),
@@ -374,6 +564,9 @@ function parseDependency(value: unknown, nameOrIndex: number | string, fallbackN
       },
       label,
     ),
+    platforms: parsePlatforms(record.platforms, `${label}.platforms`),
+    platformWhitelist: readPlatformWhitelist(record, "platformWhitelist", label),
+    hooks: parseHooks(record.hooks, `${label}.hooks`),
   }) as ManifestDependency;
 }
 
@@ -447,6 +640,10 @@ function getManifestEntryValue(dependency: ManifestDependency) {
     patches: dependency.patches,
     components: dependency.components,
     checksum: dependency.checksum,
+    binary: dependency.binary,
+    platforms: dependency.platforms,
+    platformWhitelist: dependency.platformWhitelist,
+    hooks: dependency.hooks,
   });
 
   if (Object.keys(entry).length === 1) {
@@ -499,6 +696,7 @@ export async function addPackageManifestDependency(
     versionRange,
     prerelease: options.prerelease,
     fullProject: options.fullProject,
+    binary: options.binary,
     ...readInstallModifiers(options, "dependency"),
   }) as ManifestDependency;
   const manifest = await readManifestForWrite();
@@ -574,27 +772,50 @@ export async function readPackageManifest(): Promise<PackageManifest> {
     throw new Error(`${MANIFEST_FILE_NAME} must define dependencies.`);
   }
 
-  return { dependencies: parseDependencies(manifest.dependencies) };
+  const allDependencies = parseDependencies(manifest.dependencies);
+  const currentPlatform = getCurrentPlatform();
+
+  const dependencies = allDependencies.filter((dependency) => {
+    if (!dependency.platformWhitelist || !dependency.platformWhitelist.length) {
+      return true;
+    }
+
+    return dependency.platformWhitelist.includes(currentPlatform);
+  });
+
+  return { dependencies };
 }
 
 export function getManifestDependencyOptions(
   dependency: ManifestDependency,
-  cliOptions: Pick<GetPkgOptions, "cache" | "httpProxy" | "httpsProxy"> = {},
+  cliOptions: Pick<GetPkgOptions, "cache" | "httpProxy" | "httpsProxy" | "offline" | "transitive"> = {},
 ): GetPkgOptions {
+  const platform = getCurrentPlatform();
+  const platformOverride = dependency.platforms?.[platform];
+
+  const resolved: ManifestDependency = {
+    ...dependency,
+    ...platformOverride,
+  };
+
   return compact({
     cache: cliOptions.cache,
+    offline: cliOptions.offline,
     httpProxy: cliOptions.httpProxy || undefined,
     httpsProxy: cliOptions.httpsProxy || undefined,
-    fullProject: dependency.fullProject,
-    tag: dependency.tag,
-    branch: dependency.branch,
-    versionPolicy: dependency.versionPolicy,
-    versionRange: dependency.versionRange,
-    prerelease: dependency.prerelease,
-    includePath: dependency.includePath,
-    stripPrefix: dependency.stripPrefix,
-    patches: dependency.patches,
-    components: dependency.components,
-    checksum: dependency.checksum,
+    transitive: cliOptions.transitive,
+    fullProject: resolved.fullProject,
+    tag: resolved.tag,
+    branch: resolved.branch,
+    versionPolicy: resolved.versionPolicy,
+    versionRange: resolved.versionRange,
+    prerelease: resolved.prerelease,
+    includePath: resolved.includePath,
+    stripPrefix: resolved.stripPrefix,
+    patches: resolved.patches,
+    components: resolved.components,
+    checksum: resolved.checksum,
+    binary: resolved.binary,
+    hooks: resolved.hooks,
   }) as GetPkgOptions;
 }
