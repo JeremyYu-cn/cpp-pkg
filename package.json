@@ -1,6 +1,6 @@
 {
   "name": "cppkg-cli",
-  "version": "1.1.1",
+  "version": "1.1.2",
   "description": "CLI for downloading C/C++ packages into a shared include directory or project workspace",
   "main": "dist/main.js",
   "types": "dist/main.d.ts",
@@ -25,7 +25,7 @@
     "server:web:dev": "node ./scripts/server-web-dev.mjs",
     "server:web:next": "next dev ./server-ui",
     "prepack": "npm test",
-    "pretest": "npm run build",
+    "pretest": "npm run build && npm run docs:generate",
     "test": "npm run test:typecheck && vitest run",
     "test:typecheck": "tsc -p tsconfig.test.json && tsc -p tsconfig.scripts.json"
   },
