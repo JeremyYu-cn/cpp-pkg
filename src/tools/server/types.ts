@@ -22,3 +22,11 @@ export type PackageServerState = {
   installed: InstalledDependency[];
   manifest: PackageServerManifestState;
 };
+
+export type OutdatedPackageInfo = {
+  currentVersion: string;
+  latestVersion?: string;
+  name: string;
+  outdated: boolean;
+  error?: string;
+};

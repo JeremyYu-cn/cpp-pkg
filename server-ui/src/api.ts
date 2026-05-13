@@ -184,3 +184,21 @@ export function cancelTask(id: string) {
     return { task: normalized };
   });
 }
+
+export function fetchOutdatedPackages() {
+  return requestJson<{ packages: unknown[] }>("/api/outdated").then(({ packages }) => packages);
+}
+
+export function fetchPackageInfo(selector: string) {
+  return requestJson<{ package: unknown }>(`/api/info/${encodeURIComponent(selector)}`).then(({ package: pkg }) => pkg);
+}
+
+export function cleanPackages(all = false) {
+  return requestJson<{ removed: string[] }>("/api/clean", {
+    body: JSON.stringify({ all }),
+    headers: {
+      "content-type": "application/json",
+    },
+    method: "POST",
+  });
+}

@@ -29,6 +29,10 @@ async function handleRequest(
   } catch (error: unknown) {
     const statusCode = error instanceof HttpError ? error.statusCode : 500;
 
+    if (statusCode >= 500) {
+      console.error("[cppkg server]", getErrorMessage(error));
+    }
+
     sendJson(res, statusCode, {
       error: getErrorMessage(error),
     });

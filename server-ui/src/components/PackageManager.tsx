@@ -22,6 +22,7 @@ import ConfigPanel from "./ConfigPanel";
 import DirectDownload from "./DirectDownload";
 import InstalledPackagesTable from "./InstalledPackagesTable";
 import ManifestTable from "./ManifestTable";
+import OutdatedPackages from "./OutdatedPackages";
 import SearchPackages from "./SearchPackages";
 import StatusPanel from "./StatusPanel";
 import SummaryGrid from "./SummaryGrid";
@@ -150,6 +151,11 @@ export default function PackageManager() {
               children: <StatusPanel />,
               key: "status",
               label: "Status",
+            },
+            {
+              children: <OutdatedPackages />,
+              key: "outdated",
+              label: "Outdated",
             },
             {
               children: <ConfigPanel onChanged={() => void loadPackages()} />,

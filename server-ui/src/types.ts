@@ -139,6 +139,14 @@ export type SearchValues = {
   query: string;
 };
 
+export type OutdatedPackageInfo = {
+  currentVersion: string;
+  latestVersion?: string;
+  name: string;
+  outdated: boolean;
+  error?: string;
+};
+
 export type ConfigFormValues = {
   key: string;
   value: string;

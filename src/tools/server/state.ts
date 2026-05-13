@@ -21,12 +21,15 @@ async function readManifestState(): Promise<PackageServerManifestState> {
 }
 
 export async function readServerState(): Promise<PackageServerState> {
-  const installed = await readInstalledDependencies();
+  const [installed, manifest] = await Promise.all([
+    readInstalledDependencies(),
+    readManifestState(),
+  ]);
 
   return {
     cwd: process.cwd(),
     installed: installed.dependencies,
-    manifest: await readManifestState(),
+    manifest,
     packageRoot: resolvePackageRootPath(),
   };
 }
