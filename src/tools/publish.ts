@@ -138,6 +138,7 @@ export async function publishPackage(options: PublishOptions = {}) {
     await execCommand("zip", [
       "-rq",
       archivePath,
+      "--",
       ...entriesToAdd,
       ...excludeArgs,
     ], projectDir);

@@ -3,8 +3,7 @@ import { promises as fsp } from "node:fs";
 import fs from "node:fs";
 import path from "node:path";
 import { readInstalledDependencies } from "../deps";
-import { resolvePackageRootPath } from "../../public/packagePath";
-import { resolveCliConfig } from "../../public/config";
+import { resolvePackageRootPath, resolvePublicIncludePath, resolveProjectsRootPath } from "../../public/packagePath";
 import { logger } from "../logger";
 
 export type VendorOptions = {
@@ -32,22 +31,17 @@ async function copyDir(src: string, dest: string) {
 }
 
 function getIncludeSourcePath(dependency: InstalledDependency) {
-  const config = resolveCliConfig();
-  const rootDir = config.packageRootDir;
   const headers =
     dependency.install.headers.length > 0
       ? dependency.install.headers
       : dependency.install.paths;
 
-  return { rootDir, headers };
+  return { headers };
 }
 
 function getProjectSourcePath(dependency: InstalledDependency) {
-  const config = resolveCliConfig();
-  const rootDir = config.packageRootDir;
   const paths = dependency.install.paths;
-
-  return { rootDir, paths };
+  return { paths };
 }
 
 /**
@@ -66,7 +60,6 @@ export async function vendorPackages(options: VendorOptions = {}) {
     : path.resolve(process.cwd(), "vendor");
   const includeDir = path.join(outputDir, "include");
   const projectsDir = path.join(outputDir, "projects");
-  const pkgRoot = resolvePackageRootPath();
 
   await fsp.mkdir(includeDir, { recursive: true });
   await fsp.mkdir(projectsDir, { recursive: true });
@@ -77,10 +70,10 @@ export async function vendorPackages(options: VendorOptions = {}) {
     const installMode = dependency.install.mode;
 
     if (installMode === "include") {
-      const { rootDir, headers } = getIncludeSourcePath(dependency);
+      const { headers } = getIncludeSourcePath(dependency);
 
       for (const header of headers) {
-        const srcPath = path.join(pkgRoot, rootDir, header);
+        const srcPath = path.join(resolvePublicIncludePath(), header);
 
         if (!fs.existsSync(srcPath)) {
           logger.warn(
@@ -95,11 +88,11 @@ export async function vendorPackages(options: VendorOptions = {}) {
         copiedCount += 1;
       }
     } else {
-      const { rootDir, paths: installPaths } =
+      const { paths: installPaths } =
         getProjectSourcePath(dependency);
 
       for (const installPath of installPaths) {
-        const srcPath = path.join(pkgRoot, rootDir, installPath);
+        const srcPath = path.join(resolveProjectsRootPath(), installPath);
 
         if (!fs.existsSync(srcPath)) {
           logger.warn(
@@ -129,7 +122,7 @@ export async function vendorPackages(options: VendorOptions = {}) {
 
   if (options.removeOriginals) {
     logger.info("Removing original cpp_libs directory...");
-    await fsp.rm(pkgRoot, { force: true, recursive: true });
+    await fsp.rm(resolvePackageRootPath(), { force: true, recursive: true });
     logger.info("Removed cpp_libs directory");
   }
 

@@ -55,11 +55,15 @@ Start with the command that matches your workflow:
 | --- | --- | --- |
 | Try a package temporarily | `cppkg-cli get <url>` | No |
 | List installed packages | `cppkg-cli list` | No |
+| Show package details | `cppkg-cli info <pkg>` | No |
+| Check for outdated packages | `cppkg-cli outdated` | No |
 | Add a long-term project dependency | `cppkg-cli add <source> --install` | Yes |
 | Install everything from `cppkg.json` | `cppkg-cli install` | No |
 | Search before you know the repository URL | `cppkg-cli search <keywords>` | No |
 | Manage packages in a browser | `cppkg-cli server` | Optional |
 | Compile one or a few source files | `cppkg-cli compile <files...>` | No |
+| Clean all installed data | `cppkg-cli clean --force` | No |
+| Install shell completions | `eval "$(cppkg-cli completion bash)"` | No |
 
 For project dependencies, prefer `add` plus `install`. Use `get` for temporary experiments and validation.
 
@@ -385,11 +389,34 @@ List installed packages:
 cppkg-cli list
 ```
 
+Show detailed info about a specific package:
+
+```bash
+cppkg-cli info json
+cppkg-cli info nlohmann/json
+```
+
+Check for outdated packages (with network):
+
+```bash
+cppkg-cli outdated
+cppkg-cli outdated json fmt
+cppkg-cli outdated --prerelease
+```
+
 Check manifest, lockfile, metadata, and installed files:
 
 ```bash
 cppkg-cli status
 cppkg-cli doctor
+```
+
+Clean all installed data:
+
+```bash
+cppkg-cli clean --dry-run
+cppkg-cli clean --force
+cppkg-cli clean --all --force
 ```
 
 Update all packages or one package:
@@ -427,6 +454,23 @@ Selectors supported by `install`, `update`, and `remove`:
 | Recorded source URL | `https://github.com/nlohmann/json` |
 
 `install` selectors match entries in `cppkg.json`. `update` and `remove` selectors match installed records in `deps.json`.
+
+## Shell Completion
+
+cppkg-cli includes built-in shell completion generation for bash, zsh, and fish:
+
+```bash
+# Bash: add to ~/.bashrc
+eval "$(cppkg-cli completion bash)"
+
+# Zsh: add to ~/.zshrc
+eval "$(cppkg-cli completion zsh)"
+
+# Fish: add to ~/.config/fish/config.fish
+cppkg-cli completion fish | source
+```
+
+The completion scripts provide command names and flag suggestions for all 28 commands.
 
 ## cppkg.json Format
 

@@ -36,11 +36,12 @@ function getCppkgBinDir(): string {
 }
 
 function hasCppkgLines(content: string): boolean {
+  const config = resolveCliConfig();
   return (
     content.includes("cppkg headers") ||
     content.includes("cppkg binaries") ||
-    content.includes("cpp_libs/include") ||
-    content.includes("cpp_libs/bin")
+    content.includes(`${config.packageRootDir}/${config.includeDirName}`) ||
+    content.includes(`${config.packageRootDir}/${config.projectsDirName}`)
   );
 }
 
@@ -76,17 +77,11 @@ function insertAfterProjectCall(
 }
 
 function buildCppkgLines(includeDir: string, binDir: string): string[] {
-  const lines: string[] = [
+  return [
     "# Added by cppkg integrate",
     `include_directories(${includeDir})`,
+    `link_directories(${binDir})`,
   ];
-
-  if (fs.existsSync(path.resolve(process.cwd(), binDir.replace(/\$\{CMAKE_SOURCE_DIR\}/, ".")))) {
-    lines.push(`link_directories(${binDir})`);
-    lines.push("# cppkg full-project targets can be added with add_subdirectory");
-  }
-
-  return lines;
 }
 
 function createBasicCmakeLists(includeDir: string, binDir: string): string {

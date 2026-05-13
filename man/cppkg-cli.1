@@ -1,0 +1,122 @@
+.TH CPPKG\-CLI 1 "2026-05-13" "1.1.2" "C/C++ Package Manager"
+.SH NAME
+cppkg\-cli \- project\-local C/C++ dependency manager
+.SH SYNOPSIS
+.B cppkg\-cli
+[\fIoptions\fR] \fIcommand\fR [\fIargs\fR]
+.SH DESCRIPTION
+cppkg\-cli downloads C and C++ dependencies into the current project workspace.
+It keeps headers, source projects, cache files, lock data, and metadata
+under a local directory (default \fBcpp_libs/\fR) instead of installing
+libraries into system directories.
+.SH COMMANDS
+.TP
+.B add
+Add a dependency to cppkg.json, optionally installing it.
+.TP
+.B audit
+Check installed packages against known vulnerabilities.
+.TP
+.B build
+Configure and build a CMake project with cppkg include paths.
+.TP
+.B cache
+Manage downloaded archive cache (subcommands: list, clean).
+.TP
+.B clean
+Remove installed packages, cache, and lockfile.
+.TP
+.B cmake
+Generate a cppkg.cmake integration helper.
+.TP
+.B compile
+Compile C/C++ source files with cppkg include paths.
+.TP
+.B completion
+Generate shell completion scripts for bash, zsh, or fish.
+.TP
+.B compiler
+Manage compiler versions and Docker-backed compiler profiles.
+.TP
+.B config
+Manage project-level cppkg settings (subcommands: get, set, list, remove).
+.TP
+.B create
+Scaffold a new C/C++ library project.
+.TP
+.B get
+Download a package from a Git repository or archive URL.
+.TP
+.B import
+Import dependencies from vcpkg.json or conanfile.txt.
+.TP
+.B info
+Show detailed information about an installed package.
+.TP
+.B init
+Create a cppkg.json package manifest.
+.TP
+.B inspect
+Inspect C/C++ source includes and report package needs.
+.TP
+.B install
+Install dependencies declared in cppkg.json.
+.TP
+.B integrate
+Modify CMakeLists.txt to auto-include cppkg headers and projects.
+.TP
+.B list
+List installed packages (with --tree for dependency graph).
+.TP
+.B outdated
+Check installed packages for newer available versions.
+.TP
+.B publish
+Publish the project as a package archive to GitHub releases.
+.TP
+.B remove
+Remove an installed package from the configured install directory.
+.TP
+.B search
+Search GitHub for C/C++ libraries sorted by stars.
+.TP
+.B server
+Start a local web server for browsing and downloading packages.
+.TP
+.B status
+Check project health (manifest, lockfile, metadata, installed files).
+.TP
+.B update
+Update installed packages to newer versions.
+.TP
+.B vendor
+Copy installed packages into a vendor/ directory.
+.TP
+.B why
+Show why a package is installed (dependency chain).
+.SH OPTIONS
+.TP
+.B \-V, \-\-version
+Output the version number.
+.TP
+.B \-h, \-\-help
+Display help for a command.
+.SH FILES
+.TP
+.I cppkg.json
+Project dependency manifest.
+.TP
+.I cppkg-lock.json
+Resolved archive URLs and integrity data.
+.TP
+.I cppkg.config.json
+Optional project config (tokens, proxy, paths).
+.TP
+.I cpp_libs/
+Default package data directory (configurable via cppkg.config.json).
+.SH BUGS
+Report issues at https://github.com/JeremyYu-cn/cppkg-cli/issues
+.SH AUTHOR
+Jeremy Yu
+.SH LICENSE
+MIT
