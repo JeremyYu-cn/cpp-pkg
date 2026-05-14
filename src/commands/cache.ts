@@ -3,7 +3,9 @@ import path from "node:path";
 import { resolveArchiveCachePath } from "../public/packagePath";
 import {
   cleanArchiveCache,
+  exportArchiveCache,
   formatBytes,
+  importArchiveCache,
   listArchiveCacheEntries,
 } from "../tools/cache";
 import { logger } from "../tools/logger";
@@ -75,6 +77,38 @@ export function registerCacheCommand(program: Command) {
 
       logger.success(
         `Removed ${result.removedEntries.length} cached archive(s), freeing ${formatBytes(result.totalBytes)}.`,
+      );
+    });
+
+  cache
+    .command("export")
+    .description("Export cached archives to a directory")
+    .argument("<target>", "Target directory to export cache into")
+    .action(async (target: string) => {
+      const targetPath = path.resolve(target);
+      const result = await exportArchiveCache(targetPath);
+      if (!result.exported) {
+        logger.warn("No cached archives to export.");
+        return;
+      }
+      logger.success(
+        `Exported ${result.exported} cached archive(s) (${formatBytes(result.totalBytes)}) to ${targetPath}`,
+      );
+    });
+
+  cache
+    .command("import")
+    .description("Import cached archives from a directory")
+    .argument("<source>", "Source directory to import cache from")
+    .action(async (source: string) => {
+      const sourcePath = path.resolve(source);
+      const result = await importArchiveCache(sourcePath);
+      if (!result.imported) {
+        logger.warn("No cache files found to import.");
+        return;
+      }
+      logger.success(
+        `Imported ${result.imported} cached archive(s) (${formatBytes(result.totalBytes)}) from ${sourcePath}`,
       );
     });
 }

@@ -12,22 +12,29 @@ import { registerCompilerCommand } from "./commands/compiler";
 import { registerCompletionCommand } from "./commands/completion";
 import { registerConfigCommand } from "./commands/config";
 import { registerCreateCommand } from "./commands/create";
+import { registerDiffCommand } from "./commands/diff";
+import { registerEnvCommand } from "./commands/env";
 import { registerGetCommand } from "./commands/get";
+import { registerGraphCommand } from "./commands/graph";
 import { registerImportCommand } from "./commands/import";
 import { registerInfoCommand } from "./commands/info";
 import { registerInitCommand } from "./commands/init";
 import { registerInstallCommand } from "./commands/install";
 import { registerInspectCommand } from "./commands/inspect";
 import { registerIntegrateCommand } from "./commands/integrate";
+import { registerLicensesCommand } from "./commands/licenses";
 import { registerListCommand } from "./commands/list";
+import { registerMigrateCommand } from "./commands/migrate";
 import { registerOutdatedCommand } from "./commands/outdated";
 import { registerPublishCommand } from "./commands/publish";
 import { registerRemoveCommand } from "./commands/remove";
 import { registerSearchCommand } from "./commands/search";
+import { registerSelfUpdateCommand } from "./commands/selfUpdate";
 import { registerServerCommand } from "./commands/server";
 import { registerStatusCommand } from "./commands/status";
 import { registerUpdateCommand } from "./commands/update";
 import { registerVendorCommand } from "./commands/vendor";
+import { registerVerifyCommand } from "./commands/verify";
 import { registerWhyCommand } from "./commands/why";
 
 export function getPackageVersion() {
@@ -79,8 +86,15 @@ export function createProgram(version = getPackageVersion()) {
   registerCMakeCommand(program);
   registerCompletionCommand(program);
   registerConfigCommand(program);
+  registerDiffCommand(program);
+  registerEnvCommand(program);
+  registerGraphCommand(program);
   registerInfoCommand(program);
+  registerLicensesCommand(program);
+  registerMigrateCommand(program);
   registerOutdatedCommand(program);
+  registerSelfUpdateCommand(program);
+  registerVerifyCommand(program);
   registerWhyCommand(program);
 
   return program;

@@ -100,3 +100,46 @@ export async function cleanArchiveCache(options: CleanCacheOptions = {}) {
     totalBytes: removedEntries.reduce((total, entry) => total + entry.size, 0),
   };
 }
+
+export async function exportArchiveCache(targetPath: string): Promise<{ exported: number; totalBytes: number }> {
+  const entries = await listArchiveCacheEntries();
+  await fsp.mkdir(targetPath, { recursive: true });
+  let exported = 0;
+  let totalBytes = 0;
+
+  for (const entry of entries) {
+    const destPath = path.join(targetPath, entry.name);
+    await fsp.copyFile(entry.path, destPath);
+    exported++;
+    totalBytes += entry.size;
+  }
+
+  return { exported, totalBytes };
+}
+
+export async function importArchiveCache(sourcePath: string): Promise<{ imported: number; totalBytes: number }> {
+  const cachePath = resolveArchiveCachePath();
+  await fsp.mkdir(cachePath, { recursive: true });
+  let imported = 0;
+  let totalBytes = 0;
+
+  let sourceEntries: string[];
+  try {
+    sourceEntries = await fsp.readdir(sourcePath);
+  } catch {
+    throw new Error(`Cache source directory not found: ${sourcePath}`);
+  }
+
+  for (const entry of sourceEntries) {
+    const srcPath = path.join(sourcePath, entry);
+    const stat = await fsp.stat(srcPath);
+    if (!stat.isFile()) continue;
+
+    const destPath = path.join(cachePath, entry);
+    await fsp.copyFile(srcPath, destPath);
+    imported++;
+    totalBytes += stat.size;
+  }
+
+  return { imported, totalBytes };
+}
